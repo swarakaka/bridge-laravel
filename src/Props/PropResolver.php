@@ -30,6 +30,7 @@ final class PropResolver
         $props = array_merge($shared, $page->props);
         $resolved = [];
         $deferred = [];
+        $merge = [];
 
         foreach ($props as $key => $value) {
             $key = (string) $key;
@@ -50,6 +51,9 @@ final class PropResolver
                 }
 
                 $value = $value->resolve($this->container);
+            } elseif ($value instanceof Merge) {
+                $merge[] = $key;
+                $value = $value->resolve($this->container);
             } elseif ($value instanceof Deferred) {
                 $inlineDeferred = $selection->isPartial() || ($mode === Mode::Json && $this->resolveDeferredInJson);
 
@@ -66,7 +70,7 @@ final class PropResolver
             $resolved[$key] = $this->applyNestedSelection($key, $serialized, $selection);
         }
 
-        return new ResolvedProps($resolved, $deferred, $selection->isPartial());
+        return new ResolvedProps($resolved, $deferred, $selection->isPartial(), $merge);
     }
 
     private function applyNestedSelection(string $key, mixed $value, PartialSelection $selection): mixed

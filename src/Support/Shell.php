@@ -14,7 +14,7 @@ final class Shell
     /**
      * @param  array<string, mixed>|null  $page
      */
-    public static function root(string $id, ?array $page): string
+    public static function root(string $id, ?array $page, ?string $ssrBody = null): string
     {
         $html = '';
 
@@ -24,15 +24,24 @@ final class Shell
                 .'</script>'."\n";
         }
 
-        return $html.'<div id="'.htmlspecialchars($id, ENT_QUOTES).'" data-bridge></div>';
+        $attributes = $ssrBody !== null ? ' data-server-rendered="true"' : '';
+
+        return $html.'<div id="'.htmlspecialchars($id, ENT_QUOTES).'" data-bridge'.$attributes.'>'.($ssrBody ?? '').'</div>';
     }
 
-    public static function head(int $protocol, ?string $build): string
+    /**
+     * @param  list<string>  $ssrHead
+     */
+    public static function head(int $protocol, ?string $build, array $ssrHead = []): string
     {
         $html = '<meta name="bridge-protocol" content="'.$protocol.'">';
 
         if ($build !== null) {
             $html .= "\n".'<meta name="bridge-build" content="'.htmlspecialchars($build, ENT_QUOTES).'">';
+        }
+
+        foreach ($ssrHead as $fragment) {
+            $html .= "\n".$fragment;
         }
 
         return $html;

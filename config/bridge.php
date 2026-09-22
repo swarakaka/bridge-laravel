@@ -79,6 +79,21 @@ return [
         'skip_for_bearer' => true,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Server-side rendering
+    |--------------------------------------------------------------------------
+    | When enabled, HTML requests POST the page object to the SSR server
+    | (`@swarakaka/bridge-vue/server`, started with `node bootstrap/ssr/ssr.js`
+    | or `php artisan bridge:ssr`). Failures fall back to client rendering.
+    */
+    'ssr' => [
+        'enabled' => (bool) env('BRIDGE_SSR_ENABLED', false),
+        'url' => env('BRIDGE_SSR_URL', 'http://127.0.0.1:13714'),
+        'timeout' => (float) env('BRIDGE_SSR_TIMEOUT', 2.0),
+        'bundle' => env('BRIDGE_SSR_BUNDLE', 'bootstrap/ssr/ssr.js'),
+    ],
+
     'middleware' => [
         // Push HandleBridgeRequests onto the `web` group automatically.
         'auto_register' => true,
@@ -103,6 +118,10 @@ return [
         'max_duration_s' => env('BRIDGE_STREAM_MAX_DURATION'),
         'retry_ms' => 3000,
         'max_connections_per_user' => (int) env('BRIDGE_STREAM_MAX_CONNECTIONS', 3),
+        // `throttle:bridge-stream` limiter: connection attempts per minute per user or IP.
+        'connects_per_minute' => (int) env('BRIDGE_STREAM_CONNECTS_PER_MINUTE', 30),
+        // Maximum client-requested channels (`?channels=`) per connection.
+        'max_client_channels' => 20,
         'ticket_ttl_s' => 60,
         'drivers' => [
             'sync' => [],

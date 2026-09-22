@@ -7,6 +7,7 @@ namespace Bridge;
 use Bridge\Console\DoctorCommand;
 use Bridge\Console\InstallCommand;
 use Bridge\Console\PruneStreamEventsCommand;
+use Bridge\Console\SsrCommand;
 use Bridge\Errors\ErrorMapper;
 use Bridge\Errors\ExceptionRenderer;
 use Bridge\Http\Middleware\AuthenticateStreamTicket;
@@ -17,6 +18,9 @@ use Bridge\Negotiation\Negotiation;
 use Bridge\Props\PropResolver;
 use Bridge\Props\Serializer;
 use Bridge\Representation\RepresenterRegistry;
+use Bridge\Ssr\HttpSsrGateway;
+use Bridge\Ssr\NullSsrGateway;
+use Bridge\Ssr\SsrGateway;
 use Bridge\Stream\Bus\BusManager;
 use Bridge\Stream\ChannelAuthorizer;
 use Bridge\Stream\ConnectionLimiter;
@@ -25,6 +29,7 @@ use Bridge\Stream\Listeners\PublishStreamableEvents;
 use Bridge\Support\Version;
 use Bridge\Testing\BridgeTestingMacros;
 use Illuminate\Auth\Middleware\Authenticate;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Config\Repository;
@@ -33,12 +38,15 @@ use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Contracts\Session\Session;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
+use Psr\Log\LoggerInterface;
 
 final class BridgeServiceProvider extends ServiceProvider
 {
@@ -80,6 +88,21 @@ final class BridgeServiceProvider extends ServiceProvider
         $this->app->singleton(ErrorMapper::class);
         $this->app->singleton(ExceptionRenderer::class);
 
+        $this->app->singleton(SsrGateway::class, function (Application $app): SsrGateway {
+            $config = $app->make(Repository::class);
+
+            if (! (bool) $config->get('bridge.ssr.enabled', false)) {
+                return new NullSsrGateway;
+            }
+
+            return new HttpSsrGateway(
+                $app->make(HttpFactory::class),
+                $app->make(LoggerInterface::class),
+                (string) $config->get('bridge.ssr.url', 'http://127.0.0.1:13714'),
+                (float) $config->get('bridge.ssr.timeout', 2.0),
+            );
+        });
+
         $this->app->singleton(BusManager::class, fn (Application $app): BusManager => new BusManager($app));
         $this->app->bind(EventBus::class, fn (Application $app): EventBus => $app->make(BusManager::class)->driver());
         $this->app->singleton(ChannelAuthorizer::class, fn (Application $app): ChannelAuthorizer => new ChannelAuthorizer($app));
@@ -104,6 +127,7 @@ final class BridgeServiceProvider extends ServiceProvider
         $this->publishes([__DIR__.'/../resources/views/app.blade.php' => $this->app->resourcePath('views/app.blade.php')], 'bridge-views');
 
         $this->registerMiddleware();
+        $this->registerRateLimiter();
         $this->registerExceptionRenderer();
         $this->registerBladeDirectives();
         $this->registerRequestMacros();
@@ -112,7 +136,7 @@ final class BridgeServiceProvider extends ServiceProvider
         $this->app->make(Dispatcher::class)->listen('*', PublishStreamableEvents::class);
 
         if ($this->app->runningInConsole()) {
-            $this->commands([InstallCommand::class, DoctorCommand::class, PruneStreamEventsCommand::class]);
+            $this->commands([InstallCommand::class, DoctorCommand::class, PruneStreamEventsCommand::class, SsrCommand::class]);
         }
 
         if (class_exists(TestResponse::class)) {
@@ -145,6 +169,22 @@ final class BridgeServiceProvider extends ServiceProvider
         });
     }
 
+    /**
+     * `throttle:bridge-stream` for stream routes: limits connection attempts,
+     * complementing the per-user concurrent connection cap.
+     */
+    private function registerRateLimiter(): void
+    {
+        $perMinute = (int) $this->app->make(Repository::class)->get('bridge.stream.connects_per_minute', 30);
+
+        RateLimiter::for('bridge-stream', function (Request $request) use ($perMinute) {
+            $user = $request->user();
+            $key = $user !== null ? 'user:'.$user->getAuthIdentifier() : 'ip:'.$request->ip();
+
+            return Limit::perMinute($perMinute)->by('bridge-stream:'.$key);
+        });
+    }
+
     private function registerExceptionRenderer(): void
     {
         $this->callAfterResolving(ExceptionHandler::class, function (ExceptionHandler $handler): void {
@@ -161,10 +201,10 @@ final class BridgeServiceProvider extends ServiceProvider
         Blade::directive('bridge', function (?string $expression) use ($rootId): string {
             $id = $expression !== null && trim($expression) !== '' ? $expression : var_export($rootId, true);
 
-            return '<?php echo \\Bridge\\Support\\Shell::root('.$id.', $bridgePage ?? null); ?>';
+            return '<?php echo \\Bridge\\Support\\Shell::root('.$id.', $bridgePage ?? null, $bridgeSsrBody ?? null); ?>';
         });
 
-        Blade::directive('bridgeHead', fn (): string => '<?php echo \\Bridge\\Support\\Shell::head($bridgeProtocol ?? 1, $bridgeBuild ?? null); ?>');
+        Blade::directive('bridgeHead', fn (): string => '<?php echo \\Bridge\\Support\\Shell::head($bridgeProtocol ?? 1, $bridgeBuild ?? null, $bridgeSsrHead ?? []); ?>');
     }
 
     private function registerRequestMacros(): void

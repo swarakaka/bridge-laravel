@@ -14,5 +14,6 @@ final class RenderOptions
         public readonly ?CacheOptions $cache = null,
         public readonly ?string $shellView = null,
         public readonly int $status = 200,
+        public readonly ?string $jsonRoot = null,
     ) {}
 }

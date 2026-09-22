@@ -13,6 +13,7 @@ use Bridge\Page\Page;
 use Bridge\Props\Always;
 use Bridge\Props\Deferred;
 use Bridge\Props\Lazy;
+use Bridge\Props\Merge;
 use Bridge\Props\PropResolver;
 use Bridge\Props\Serializer;
 use Bridge\Representation\RepresenterRegistry;
@@ -173,6 +174,12 @@ class Bridge
     public function always(mixed $value): Always
     {
         return new Always($value);
+    }
+
+    /** Appended by clients on partial reloads (infinite scroll, "load more"). */
+    public function merge(mixed $value): Merge
+    {
+        return new Merge($value);
     }
 
     public function mode(?Request $request = null): Mode

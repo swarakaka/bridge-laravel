@@ -20,10 +20,20 @@ final class JsonRepresenter implements Representer
 {
     public function represent(PageDocument $document, RenderOptions $options, Negotiation $negotiation, Request $request): Response
     {
-        $body = ['data' => $document->props === [] ? new \stdClass : $document->props];
+        $props = $document->props;
+        $meta = array_diff_key($document->meta, ['merge' => true]);
 
-        if ($document->meta !== []) {
-            $body['meta'] = $document->meta;
+        if ($options->jsonRoot !== null && array_key_exists($options->jsonRoot, $props)) {
+            $root = $props[$options->jsonRoot];
+            unset($props[$options->jsonRoot]);
+            $meta = array_merge($meta, $props);
+            $body = ['data' => $root];
+        } else {
+            $body = ['data' => $props === [] ? new \stdClass : $props];
+        }
+
+        if ($meta !== []) {
+            $body['meta'] = $meta;
         }
 
         $response = $this->json($body, $options->status);

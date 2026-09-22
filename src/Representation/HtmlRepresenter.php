@@ -8,6 +8,7 @@ use Bridge\Errors\ErrorEnvelope;
 use Bridge\Http\Responses\Redirect;
 use Bridge\Negotiation\Negotiation;
 use Bridge\Page\PageDocument;
+use Bridge\Ssr\SsrGateway;
 use Bridge\Support\Headers;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\View\Factory as ViewFactory;
@@ -29,6 +30,7 @@ final class HtmlRepresenter implements Representer
     public function __construct(
         private readonly ViewFactory $views,
         private readonly Repository $config,
+        private readonly SsrGateway $ssr,
     ) {}
 
     public function represent(PageDocument $document, RenderOptions $options, Negotiation $negotiation, Request $request): Response
@@ -40,10 +42,15 @@ final class HtmlRepresenter implements Representer
             throw new RuntimeException("Bridge shell view [{$view}] does not exist. Publish it with `php artisan bridge:install` or set bridge.shell.view.");
         }
 
+        $page = $document->toArray();
+        $rendered = (bool) $this->config->get('bridge.ssr.enabled', false) && $embed ? $this->ssr->render($page) : null;
+
         $data = [
-            self::VIEW_PAGE_VARIABLE => $embed ? $document->toArray() : null,
+            self::VIEW_PAGE_VARIABLE => $embed ? $page : null,
             'bridgeBuild' => $document->build,
             'bridgeProtocol' => $document->protocol,
+            'bridgeSsrHead' => $rendered === null ? [] : $rendered->head,
+            'bridgeSsrBody' => $rendered === null ? null : $rendered->body,
         ];
 
         $response = new HttpResponse($this->views->make($view, $data)->render(), $options->status);

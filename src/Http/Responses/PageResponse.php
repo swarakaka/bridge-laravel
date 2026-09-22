@@ -33,6 +33,8 @@ final class PageResponse implements Responsable
 
     private int $status = 200;
 
+    private ?string $jsonRoot = null;
+
     public function __construct(
         private Page $page,
         private readonly Bridge $bridge,
@@ -99,6 +101,16 @@ final class PageResponse implements Responsable
         return $this;
     }
 
+    /**
+     * JSON mode only: make one prop the `data` root and move the others to `meta`.
+     */
+    public function jsonRoot(string $key): self
+    {
+        $this->jsonRoot = $key;
+
+        return $this;
+    }
+
     public function page(): Page
     {
         return $this->page;
@@ -120,7 +132,7 @@ final class PageResponse implements Responsable
         }
 
         $document = $this->document($negotiation, $request);
-        $options = new RenderOptions($this->embed, $this->cache, $this->shellView, $this->status);
+        $options = new RenderOptions($this->embed, $this->cache, $this->shellView, $this->status, $this->jsonRoot);
 
         return $this->representers->for($negotiation->mode)->represent($document, $options, $negotiation, $request);
     }
@@ -128,6 +140,11 @@ final class PageResponse implements Responsable
     public function document(Negotiation $negotiation, Request $request): PageDocument
     {
         $resolved = $this->resolver->resolve($this->page, $this->bridge->shared(), $negotiation->mode, $request);
+        $meta = $this->page->meta;
+
+        if ($resolved->merge !== []) {
+            $meta['merge'] = $resolved->merge;
+        }
 
         return new PageDocument(
             protocol: $negotiation->protocolVersion,
@@ -136,7 +153,7 @@ final class PageResponse implements Responsable
             props: $resolved->props,
             build: $this->bridge->version(),
             deferred: $resolved->deferred,
-            meta: $this->page->meta,
+            meta: $meta,
         );
     }
 

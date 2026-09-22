@@ -28,6 +28,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static Lazy lazy(Closure $callback)
  * @method static Deferred defer(Closure $callback, string $group = 'default')
  * @method static Always always(mixed $value)
+ * @method static \Bridge\Props\Merge merge(mixed $value)
  * @method static Mode mode(?\Illuminate\Http\Request $request = null)
  *
  * @see \Bridge\Bridge

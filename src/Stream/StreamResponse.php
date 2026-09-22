@@ -333,7 +333,12 @@ final class StreamResponse implements Responsable
             return [];
         }
 
-        return array_values(array_filter(array_map('trim', explode(',', $raw)), static fn (string $c) => $c !== ''));
+        $channels = array_values(array_filter(array_map('trim', explode(',', $raw)), static fn (string $c) => $c !== ''));
+
+        // Caps: a client may not request unbounded or oversized channel names.
+        $max = (int) $this->config->get('bridge.stream.max_client_channels', 20);
+
+        return array_values(array_filter(array_slice($channels, 0, max(0, $max)), static fn (string $c) => strlen($c) <= 190));
     }
 
     private function isEndSignal(Envelope $envelope): bool

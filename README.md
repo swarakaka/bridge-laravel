@@ -58,7 +58,12 @@ No mode-specific code exists in controllers. Validation and other exceptions are
 - `Bridge::lazy(fn)` — excluded until named in `X-Bridge-Only`.
 - `Bridge::defer(fn, group)` — excluded from the initial page and listed in `deferred[group]`; resolved inline in JSON mode.
 - `Bridge::always(value)` — present in every response, including partial ones.
+- `Bridge::merge(fn)` — listed in `meta.merge`; clients that opt in ("load more") append instead of replace.
 - `Bridge::share(key, value)` — shared props for every page. `errors` and `flash` are shared by default.
+
+### JSON root
+
+`Bridge::render('Customers/Show', [...])->jsonRoot('customer')` makes that prop the `data` root in JSON mode and moves the other props to `meta`.
 
 ### Partial reloads
 
@@ -115,7 +120,16 @@ Route::post('/export', fn () => Bridge::stream(function (StreamWriter $s) {
 Bridge::channel('tenant.{id}', fn (User $user, string $id) => $user->tenant_id === (int) $id);
 ```
 
-Bus drivers: `redis` (Redis Streams, replay with `Last-Event-ID`), `database` (polling, no Redis), `sync`, `null`. Connections end after `max_duration_s` with `end{reconnect:true}` so workers recycle; heartbeats are `: hb` comments. `bridge:doctor` checks the runtime, `bridge:stream:prune` trims the database bus, `Bridge::streamTicket()` issues signed URLs for clients that cannot send headers. See `docs/streams-deployment.md`.
+Bus drivers: `redis` (Redis Streams, replay with `Last-Event-ID`), `database` (polling, no Redis; use SQLite WAL), `sync`, `null`. Apply `throttle:bridge-stream` to stream routes (`bridge.stream.connects_per_minute`); client-requested `?channels=` are capped (`bridge.stream.max_client_channels`). Connections end after `max_duration_s` with `end{reconnect:true}` so workers recycle; heartbeats are `: hb` comments. `bridge:doctor` checks the runtime, `bridge:stream:prune` trims the database bus, `Bridge::streamTicket()` issues signed URLs for clients that cannot send headers. See `docs/streams-deployment.md`.
+
+### Server-side rendering
+
+```dotenv
+BRIDGE_SSR_ENABLED=true
+BRIDGE_SSR_URL=http://127.0.0.1:13714
+```
+
+Build the SSR bundle with Vite (`vite build --ssr resources/js/ssr.ts --outDir bootstrap/ssr`) and run `php artisan bridge:ssr`. HTML requests POST the page object to the SSR server and embed its `{head, body}`; failures fall back to client rendering. **After upgrading, run `php artisan view:clear`** so the compiled `@bridge` directives pick up the SSR arguments.
 
 ## Protocol
 

@@ -196,6 +196,9 @@ final class BridgeServiceProvider extends ServiceProvider
 
     private function registerBladeDirectives(): void
     {
+        // <x-bridge::app /> and <x-bridge::head />: component alternatives to the directives.
+        Blade::componentNamespace('Bridge\\View\\Components', 'bridge');
+
         $rootId = (string) $this->app->make(Repository::class)->get('bridge.shell.root_id', 'app');
 
         Blade::directive('bridge', function (?string $expression) use ($rootId): string {

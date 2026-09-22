@@ -10,6 +10,7 @@ use Bridge\Negotiation\Negotiation;
 use Bridge\Page\PageDocument;
 use Bridge\Ssr\SsrGateway;
 use Bridge\Support\Headers;
+use Bridge\Support\Shell;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\View\Factory as ViewFactory;
 use Illuminate\Http\RedirectResponse;
@@ -52,6 +53,9 @@ final class HtmlRepresenter implements Representer
             'bridgeSsrHead' => $rendered === null ? [] : $rendered->head,
             'bridgeSsrBody' => $rendered === null ? null : $rendered->body,
         ];
+
+        // The <x-bridge::app /> and <x-bridge::head /> components read the same data from the request.
+        Shell::remember($request, $embed ? $page : null, $document->protocol, $document->build, $rendered === null ? [] : $rendered->head, $rendered === null ? null : $rendered->body);
 
         $response = new HttpResponse($this->views->make($view, $data)->render(), $options->status);
         $response->headers->set('Content-Type', 'text/html; charset=utf-8');

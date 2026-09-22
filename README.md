@@ -13,6 +13,19 @@ php artisan bridge:install        # publishes config/bridge.php and resources/vi
 
 The `bridge` middleware is appended to the `web` group automatically (`bridge.middleware.auto_register`). Set `bridge.shell.view` to `app` to use the published shell, or keep the package default `bridge::app`.
 
+The shell marks where the client mounts, either with directives or with Blade components (identical output; the components accept attributes):
+
+```blade
+<head>
+    <x-bridge::head />                      {{-- or @bridgeHead: protocol/build meta tags, SSR head fragments --}}
+</head>
+<body>
+    <x-bridge::app class="h-full" />        {{-- or @bridge: the embedded page data block and <div id="app" data-bridge> --}}
+</body>
+```
+
+`<x-bridge::app>` accepts `id` (default `bridge.shell.root_id`), `:page` (defaults to the current response's page; `false` for an empty root) and `:ssr-body`; `<x-bridge::head>` accepts `:protocol`, `build` and `:ssr-head`.
+
 ## Usage
 
 ```php

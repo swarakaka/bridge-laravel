@@ -226,7 +226,8 @@ final class StreamResponse implements Responsable
         $channels = array_values(array_unique($channels));
         $lastEventId = $request->headers->get(Headers::LAST_EVENT_ID);
         $replay = $lastEventId !== null && $lastEventId !== '' && $this->bus->supportsReplay();
-        $cursor = $replay ? Cursor::fromLastEventId((string) $lastEventId) : $this->bus->latestCursor($channels);
+        $live = $this->bus->latestCursor($channels);
+        $cursor = $replay ? Cursor::fromLastEventId((string) $lastEventId) : $live;
 
         $writer->control(StreamMessage::ready($protocol, $replay, $heartbeat, $maxDuration * 1000));
 
@@ -262,6 +263,12 @@ final class StreamResponse implements Responsable
                 }
 
                 if ($this->isEndSignal($envelope)) {
+                    // An `end` only applies to connections that were live when it was
+                    // published; replayed ones would close a fresh connection.
+                    if ($this->isHistorical($envelope, $live)) {
+                        continue;
+                    }
+
                     $writer->control(StreamMessage::end(
                         (string) ($envelope->data['reason'] ?? 'closed'),
                         (bool) ($envelope->data['reconnect'] ?? true),
@@ -332,6 +339,13 @@ final class StreamResponse implements Responsable
     private function isEndSignal(Envelope $envelope): bool
     {
         return $envelope->isControl() && ($envelope->data['type'] ?? null) === 'end';
+    }
+
+    private function isHistorical(Envelope $envelope, Cursor $live): bool
+    {
+        $position = $live->for((string) $envelope->channel);
+
+        return $position !== null && $envelope->id !== null && Cursor::compare($envelope->id, $position) <= 0;
     }
 
     private function subject(Request $request): string

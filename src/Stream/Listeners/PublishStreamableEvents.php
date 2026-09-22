@@ -32,7 +32,10 @@ final class PublishStreamableEvents
             return;
         }
 
-        $message = $event->toStream();
-        $this->bus->publish($channels, Envelope::make($message->event, $message->data));
+        $messages = $event->toStream();
+
+        foreach (is_array($messages) ? $messages : [$messages] as $message) {
+            $this->bus->publish($channels, Envelope::make($message->event, $message->data));
+        }
     }
 }

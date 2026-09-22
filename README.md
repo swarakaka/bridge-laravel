@@ -1,6 +1,6 @@
 # swarakaka/bridge-laravel
 
-Laravel package for the Bridge protocol: one controller action, served as an HTML shell, a Bridge page object, or a JSON API document depending on the request's `Accept` header. Streams (SSE) arrive in Phase 3.
+Laravel package for the Bridge protocol: one controller action, served as an HTML shell, a Bridge page object, or a JSON API document depending on the request's `Accept` header, plus first-class server-sent event streams.
 
 Requires PHP 8.2+ and Laravel 11, 12 or 13.
 
@@ -85,6 +85,37 @@ $middleware->replaceInGroup('web', ValidateCsrfToken::class, \Bridge\Http\Middle
 ### Testing
 
 `TestResponse` macros: `assertBridgePage($component, fn (AssertablePage $page) => ...)`, `assertBridgeProp($key, $value)`, `assertBridgeError($status, $kind)`, `assertJsonMode()`, `assertHtmlShell()`.
+
+### Streams (SSE)
+
+```php
+// routes/web.php — one stream per user, subscribed to a shared and a private channel
+Route::get('/events', fn () => Bridge::stream()->channels(fn ($user) => ['customers', "user.{$user->id}"]))
+    ->middleware('auth:sanctum');
+
+// Anywhere: controllers, jobs, listeners
+Bridge::to('customers')->invalidate(['customers']);            // clients partial-reload these props
+Bridge::to("user.{$id}")->notify('Saved', 'success');           // toast
+Bridge::to("user.{$id}")->prop('unreadCount', 3);               // push a small prop
+Bridge::to('customers')->event('customer.created', $resource);  // application event
+
+// Or mark an event class, mirroring ShouldBroadcast
+class CustomerCreated implements ShouldStream {
+    public function streamOn(): array { return ['customers']; }
+    public function toStream(): array { return [StreamMessage::event('customer.created', [...]), StreamMessage::invalidate(['customers'])]; }
+}
+
+// One-off producer streams
+Route::post('/export', fn () => Bridge::stream(function (StreamWriter $s) {
+    $s->progress('export', 0.5, 'Halfway');
+    $s->emit('export.done', ['rows' => 10]);
+}));
+
+// Client-requested channels are authorized like broadcast channels
+Bridge::channel('tenant.{id}', fn (User $user, string $id) => $user->tenant_id === (int) $id);
+```
+
+Bus drivers: `redis` (Redis Streams, replay with `Last-Event-ID`), `database` (polling, no Redis), `sync`, `null`. Connections end after `max_duration_s` with `end{reconnect:true}` so workers recycle; heartbeats are `: hb` comments. `bridge:doctor` checks the runtime, `bridge:stream:prune` trims the database bus, `Bridge::streamTicket()` issues signed URLs for clients that cannot send headers. See `docs/streams-deployment.md`.
 
 ## Protocol
 

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use Bridge\Facades\Bridge;
 use Bridge\Stream\Bus\BusManager;
+use Bridge\Stream\Bus\Cursor;
+use Bridge\Stream\Bus\Envelope;
+use Bridge\Stream\Bus\SyncBus;
 use Bridge\Stream\ConnectionLimiter;
 use Bridge\Stream\Contracts\EventBus;
 use Bridge\Stream\Contracts\ShouldStream;
@@ -129,12 +132,57 @@ it('deduplicates a message published to two subscribed channels', function () {
     expect(array_filter($frames, fn ($f) => ($f['data']['type'] ?? null) === 'notification'))->toHaveCount(1);
 });
 
-it('ends the connection when an end signal is published', function () {
-    Bridge::to('customers')->end('server_shutdown', true);
+it('ends the connection when an end signal is published while it is live', function () {
+    // A bus that publishes an `end` during the first live read, as another process would.
+    $live = new class($this->bus) implements EventBus
+    {
+        public function __construct(private SyncBus $inner) {}
 
-    $frames = sseFrames(streamBody(stream($this, '/events', ['Last-Event-ID' => '0'])));
+        private bool $fired = false;
+
+        public function publish(array $channels, Envelope $envelope): string
+        {
+            return $this->inner->publish($channels, $envelope);
+        }
+
+        public function read(array $channels, Cursor $since, int $blockMs): iterable
+        {
+            if (! $this->fired) {
+                $this->fired = true;
+                $this->inner->publish(['customers'], Envelope::make('bridge', StreamMessage::end('server_shutdown', true)->data));
+            }
+
+            return $this->inner->read($channels, $since, $blockMs);
+        }
+
+        public function latestCursor(array $channels): Cursor
+        {
+            return $this->inner->latestCursor($channels);
+        }
+
+        public function supportsReplay(): bool
+        {
+            return true;
+        }
+    };
+    $this->app->instance(EventBus::class, $live);
+    Route::middleware('web')->get('/live', fn () => Bridge::stream()->channels(['customers'])->maxDuration(5));
+
+    $frames = sseFrames(streamBody(stream($this, '/live')));
 
     expect(end($frames)['data'])->toBe(['type' => 'end', 'reason' => 'server_shutdown', 'reconnect' => true]);
+});
+
+it('ignores replayed end signals but delivers later events', function () {
+    Bridge::to('customers')->end('server_shutdown', true);
+    Bridge::to('customers')->notify('after the end');
+
+    $frames = sseFrames(streamBody(stream($this, '/events', ['Last-Event-ID' => '0'])));
+    $types = array_map(fn ($f) => $f['data']['type'] ?? null, array_filter($frames, fn ($f) => isset($f['event'])));
+
+    expect(array_values(array_filter($types, fn ($t) => $t === 'end')))->toBe(['end'])
+        ->and(end($frames)['data']['reason'])->toBe('max_duration')
+        ->and(array_filter($frames, fn ($f) => ($f['data']['message'] ?? null) === 'after the end'))->toHaveCount(1);
 });
 
 it('publishes ShouldStream events when dispatched', function () {

@@ -16,5 +16,10 @@ interface ShouldStream
      */
     public function streamOn(): array;
 
-    public function toStream(): StreamMessage;
+    /**
+     * One message, or several published in order.
+     *
+     * @return StreamMessage|list<StreamMessage>
+     */
+    public function toStream(): StreamMessage|array;
 }

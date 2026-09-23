@@ -2,7 +2,7 @@
 
 Laravel package for the Bridge protocol: one controller action, served as an HTML shell, a Bridge page object, or a JSON API document depending on the request's `Accept` header, plus first-class server-sent event streams.
 
-Requires PHP 8.2+ and Laravel 11, 12 or 13.
+Requires PHP 8.4+ and Laravel 13.
 
 ## Install
 
@@ -96,8 +96,7 @@ Replace the CSRF middleware in the `web` group with `Bridge\Http\Middleware\Veri
 
 ```php
 // bootstrap/app.php
-$middleware->replaceInGroup('web', PreventRequestForgery::class, \Bridge\Http\Middleware\VerifyCsrfToken::class); // Laravel 13
-$middleware->replaceInGroup('web', ValidateCsrfToken::class, \Bridge\Http\Middleware\VerifyCsrfToken::class);     // Laravel 11/12
+$middleware->replaceInGroup('web', PreventRequestForgery::class, \Bridge\Http\Middleware\VerifyCsrfToken::class);
 ```
 
 ### Testing

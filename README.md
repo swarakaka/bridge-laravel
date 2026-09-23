@@ -133,7 +133,7 @@ Route::post('/export', fn () => Bridge::stream(function (StreamWriter $s) {
 Bridge::channel('tenant.{id}', fn (User $user, string $id) => $user->tenant_id === (int) $id);
 ```
 
-Bus drivers: `redis` (Redis Streams, replay with `Last-Event-ID`), `database` (polling, no Redis; use SQLite WAL), `sync`, `null`. Apply `throttle:bridge-stream` to stream routes (`bridge.stream.connects_per_minute`); client-requested `?channels=` are capped (`bridge.stream.max_client_channels`). Connections end after `max_duration_s` with `end{reconnect:true}` so workers recycle; heartbeats are `: hb` comments. `bridge:doctor` checks the runtime, `bridge:stream:prune` trims the database bus, `Bridge::streamTicket()` issues signed URLs for clients that cannot send headers. See the deployment guide (`docs/guide/streams-deployment.md`, published on the docs site).
+Bus drivers: `redis` (Redis Streams, replay with `Last-Event-ID`), `database` (polling, no Redis; use SQLite WAL), `sync`, `null`. Apply `throttle:bridge-stream` to stream routes (`bridge.stream.connects_per_minute`); client-requested `?channels=` are capped (`bridge.stream.max_client_channels`). Connections end after `max_duration_s` with `end{reconnect:true}` so workers recycle; heartbeats are `: hb` comments. `bridge:doctor` checks the runtime, `bridge:stream:prune` trims the database bus, `Bridge::streamTicket()` issues signed URLs for clients that cannot send headers. See the deployment guide (`docs/realtime/deployment.md`, published on the docs site).
 
 ### Server-side rendering
 

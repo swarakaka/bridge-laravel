@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use Bridge\Facades\Bridge;
 use Bridge\Ssr\HttpSsrGateway;
+use Bridge\Ssr\NullSsrGateway;
 use Bridge\Ssr\SsrGateway;
 use Bridge\Ssr\SsrResult;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -64,4 +66,33 @@ it('skips ssr for static shells', function () {
 
     $this->html('/customers')->assertDontSee('data-server-rendered', false);
     Http::assertNothingSent();
+});
+
+it('falls back when the ssr server answers with an invalid payload or is unreachable', function () {
+    config()->set('bridge.ssr.enabled', true);
+    $calls = 0;
+    Http::fake(function () use (&$calls) {
+        $calls++;
+
+        return $calls === 1 ? Http::response(['head' => 'x', 'body' => 12]) : throw new ConnectionException('down');
+    });
+    Log::spy();
+
+    $this->app->instance(SsrGateway::class, new HttpSsrGateway(app(Factory::class), app('log'), 'http://ssr.test/'));
+
+    $this->html('/customers')->assertSee('<div id="app" data-bridge></div>', false);
+    $this->html('/customers')->assertSee('<div id="app" data-bridge></div>', false);
+
+    expect($calls)->toBe(2);
+    Log::shouldHaveReceived('warning')->twice();
+});
+
+it('binds the http gateway only when ssr is enabled', function () {
+    config()->set('bridge.ssr.enabled', true);
+    $this->app->forgetInstance(SsrGateway::class);
+    expect($this->app->make(SsrGateway::class))->toBeInstanceOf(HttpSsrGateway::class);
+
+    config()->set('bridge.ssr.enabled', false);
+    $this->app->forgetInstance(SsrGateway::class);
+    expect($this->app->make(SsrGateway::class))->toBeInstanceOf(NullSsrGateway::class);
 });

@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use Bridge\Facades\Bridge;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -79,4 +81,27 @@ it('answers 404 for unknown routes in page and JSON mode', function () {
 
 it('marks error responses as uncacheable', function () {
     $this->page('/missing')->assertHeader('Cache-Control', 'no-store, private');
+});
+
+it('maps authorization, model-not-found and other http exceptions', function () {
+    Route::middleware('web')->get('/policy', fn () => throw new AuthorizationException('Nope.'));
+    Route::middleware('web')->get('/policy-quiet', fn () => throw new AuthorizationException(''));
+    Route::middleware('web')->get('/model', fn () => throw (new ModelNotFoundException)->setModel('App\\Models\\Customer', [1]));
+    Route::middleware('web')->get('/down', fn () => abort(503));
+    Route::middleware('web')->get('/teapot', fn () => abort(418, 'short and stout'));
+
+    $this->page('/policy')->assertBridgeError(403, 'forbidden')->assertJsonPath('error.message', 'Nope.');
+    $this->page('/policy-quiet')->assertBridgeError(403, 'forbidden')->assertJsonPath('error.message', 'This action is unauthorized.');
+    $this->page('/model')->assertBridgeError(404, 'not_found')->assertJsonPath('error.message', 'Not Found.');
+    $this->page('/down')->assertBridgeError(503, 'server')->assertJsonPath('error.message', 'Server Error.');
+    $this->page('/teapot')->assertBridgeError(418, 'http')->assertJsonPath('error.message', 'short and stout');
+
+    config()->set('app.debug', true);
+    $this->page('/model')->assertJsonPath('error.message', 'No query results for model [App\\Models\\Customer] 1');
+});
+
+it('prefers the redirect carried by the authentication exception', function () {
+    Route::middleware('web')->get('/custom-login', fn () => throw new AuthenticationException('Unauthenticated.', [], '/sign-in'));
+
+    $this->page('/custom-login')->assertBridgeError(401, 'unauthenticated')->assertJsonPath('error.redirect', '/sign-in');
 });

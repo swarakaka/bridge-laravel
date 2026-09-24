@@ -290,7 +290,9 @@ final class StreamResponse implements Responsable
             }
 
             if ($now() >= $deadline) {
-                $writer->end('max_duration', true);
+                // The cursor as id lets the reconnect replay whatever is published in
+                // the gap, even when this connection delivered no events (spec §5).
+                $writer->end('max_duration', true, $this->bus->supportsReplay() ? $cursor->fallback : null);
 
                 return;
             }

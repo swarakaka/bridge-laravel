@@ -116,14 +116,14 @@ final class StreamWriter
         $this->control(StreamMessage::error($status, $kind, $message, $final));
     }
 
-    public function end(string $reason = 'closed', bool $reconnect = false): void
+    public function end(string $reason = 'closed', bool $reconnect = false, ?string $id = null): void
     {
         if ($this->ended) {
             return;
         }
 
         $this->ended = true;
-        $this->control(StreamMessage::end($reason, $reconnect));
+        $this->control(StreamMessage::end($reason, $reconnect), $id);
     }
 
     // Internals ---------------------------------------------------------------

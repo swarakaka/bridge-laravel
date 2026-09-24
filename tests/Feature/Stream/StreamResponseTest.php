@@ -89,7 +89,9 @@ it('sends the stream headers and a ready event, then ends after max duration', f
     expect($frames[0])->toBe(['retry' => '3000'])
         ->and($frames[1]['event'])->toBe('bridge')
         ->and($frames[1]['data'])->toBe(['type' => 'ready', 'protocol' => 1, 'replayed' => false, 'heartbeat' => 15000, 'maxDuration' => 0])
-        ->and(end($frames)['data'])->toBe(['type' => 'end', 'reason' => 'max_duration', 'reconnect' => true]);
+        ->and(end($frames)['data'])->toBe(['type' => 'end', 'reason' => 'max_duration', 'reconnect' => true])
+        // The cursor, so the reconnect replays anything published in between.
+        ->and(end($frames)['id'])->toBe('0');
 });
 
 it('delivers bus events with ids and skips events from before the connection', function () {
@@ -147,7 +149,7 @@ it('publishes application events, props and invalidations through the facade', f
     Bridge::to('customers')->invalidate(['customers']);
 
     $frames = sseFrames(streamBody(stream($this, '/events', ['Last-Event-ID' => '0'])));
-    $delivered = array_values(array_filter($frames, fn ($f) => isset($f['id'])));
+    $delivered = array_values(array_filter($frames, fn ($f) => isset($f['id']) && ($f['data']['type'] ?? null) !== 'end'));
 
     expect($delivered)->toHaveCount(3)
         ->and($delivered[0]['event'])->toBe('customer.created')

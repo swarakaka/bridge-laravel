@@ -33,6 +33,9 @@ final class PropResolver
         $resolved = [];
         $deferred = [];
         $merge = [];
+        $prepend = [];
+        $deepMerge = [];
+        $matchOn = [];
         $once = [];
         // Held once keys matter only to page clients; HTML shells always carry the values.
         $held = $mode === Mode::Page ? $this->heldOnceKeys($request) : [];
@@ -72,7 +75,16 @@ final class PropResolver
 
                 $value = $this->unwrap($key, $value);
             } elseif ($value instanceof Merge) {
-                $merge[] = $key;
+                match ($value->mode) {
+                    Merge::PREPEND => $prepend[] = $key,
+                    Merge::DEEP => $deepMerge[] = $key,
+                    default => $merge[] = $key,
+                };
+
+                if ($value->matchOn !== []) {
+                    $matchOn[$key] = $value->matchOn;
+                }
+
                 $value = $this->unwrap($key, $value);
             } elseif ($value instanceof Deferred) {
                 $inlineDeferred = $selection->isPartial() || ($mode === Mode::Json && $this->resolveDeferredInJson);
@@ -90,7 +102,7 @@ final class PropResolver
             $resolved[$key] = $this->applyNestedSelection($key, $serialized, $selection);
         }
 
-        return new ResolvedProps($resolved, $deferred, $selection->isPartial(), $merge, $once);
+        return new ResolvedProps($resolved, $deferred, $selection->isPartial(), $merge, $once, $prepend, $deepMerge, $matchOn);
     }
 
     /**

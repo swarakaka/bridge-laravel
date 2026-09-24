@@ -221,6 +221,12 @@ class BridgeManager
         return new Merge($value);
     }
 
+    /** Merged key by key at every depth on opted-in partial reloads. */
+    public function deepMerge(mixed $value): Merge
+    {
+        return new Merge($value, Merge::DEEP);
+    }
+
     /**
      * Sent once, then reused by the client until `$ttl` (seconds or an
      * interval) passes. `$key` shares one value between props or pages.

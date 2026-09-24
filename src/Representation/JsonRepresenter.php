@@ -21,7 +21,8 @@ final class JsonRepresenter implements Representer
     public function represent(PageDocument $document, RenderOptions $options, Negotiation $negotiation, Request $request): Response
     {
         $props = $document->props;
-        $meta = array_diff_key($document->meta, ['merge' => true]);
+        // Merge hints only concern page clients (spec/page.md §3).
+        $meta = array_diff_key($document->meta, ['merge' => true, 'prepend' => true, 'deepMerge' => true, 'matchOn' => true]);
 
         if ($options->jsonRoot !== null && array_key_exists($options->jsonRoot, $props)) {
             $root = $props[$options->jsonRoot];

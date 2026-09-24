@@ -155,9 +155,7 @@ final class PageResponse implements Responsable
         $resolved = $this->resolver->resolve($this->page, $this->bridge->shared(), $negotiation->mode, $request);
         $meta = $this->page->meta;
 
-        if ($resolved->merge !== []) {
-            $meta['merge'] = $resolved->merge;
-        }
+        $meta = array_merge($meta, $resolved->mergeMeta());
 
         if ($resolved->once !== []) {
             $meta['once'] = $resolved->once;

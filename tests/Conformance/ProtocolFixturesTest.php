@@ -136,6 +136,19 @@ it('produces the history fixtures', function () {
     expect($cleared->json())->toEqual(protocolFixture('page/clear-history.json'));
 });
 
+it('produces the merge-modes fixture', function () {
+    Route::middleware('web')->get('/feed', fn () => Bridge::render('Feed', [
+        'customers' => Bridge::merge(['data' => [['id' => 22, 'name' => 'Globex']], 'meta' => ['current_page' => 2]])->matchOn('data.id'),
+        'messages' => Bridge::merge([['id' => 7, 'body' => 'Earlier']])->prepend()->matchOn('id'),
+        'settings' => Bridge::deepMerge(['theme' => ['dark' => true]]),
+    ]));
+
+    $response = $this->page('/feed?page=2')->assertOk();
+
+    validateAgainst('page', (string) $response->getContent());
+    expect($response->json())->toEqual(protocolFixture('page/merge-modes.json'));
+});
+
 it('produces the once fixtures', function (string $fixture, array $headers) {
     Route::middleware('web')->get('/customers/create', fn () => Bridge::render('Customers/Create', [
         'statuses' => Bridge::once(fn () => ['active', 'inactive'], key: 'customer-statuses'),

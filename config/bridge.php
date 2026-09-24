@@ -91,6 +91,8 @@ return [
         'enabled' => (bool) env('BRIDGE_SSR_ENABLED', false),
         'url' => env('BRIDGE_SSR_URL', 'http://127.0.0.1:13714'),
         'timeout' => (float) env('BRIDGE_SSR_TIMEOUT', 2.0),
+        // After a connection failure or timeout, skip SSR for this many seconds.
+        'cooldown_s' => (int) env('BRIDGE_SSR_COOLDOWN', 10),
         'bundle' => env('BRIDGE_SSR_BUNDLE', 'bootstrap/ssr/ssr.js'),
     ],
 
@@ -126,7 +128,8 @@ return [
         'drivers' => [
             'sync' => [],
             'null' => [],
-            'redis' => ['connection' => env('BRIDGE_STREAM_REDIS_CONNECTION', 'default'), 'maxlen' => 1000],
+            // retain_minutes: a channel's stream key expires this long after its last publish.
+            'redis' => ['connection' => env('BRIDGE_STREAM_REDIS_CONNECTION', 'default'), 'maxlen' => 1000, 'retain_minutes' => 60],
             'database' => [
                 'connection' => env('BRIDGE_STREAM_DB_CONNECTION'),
                 'table' => 'bridge_stream_events',

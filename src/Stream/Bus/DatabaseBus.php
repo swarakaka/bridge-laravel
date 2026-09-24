@@ -117,6 +117,16 @@ final class DatabaseBus implements EventBus, ReplayWindow
         return true;
     }
 
+    /**
+     * Delete the channels' rows (used by bridge:doctor after its roundtrip).
+     *
+     * @param  list<string>  $channels
+     */
+    public function forget(array $channels): void
+    {
+        $this->query()->whereIn('channel', array_map(fn (string $c) => $this->key($c), $channels))->delete();
+    }
+
     public function prune(int $retainMinutes): int
     {
         return $this->query()->where('created_at', '<', now()->subMinutes($retainMinutes))->delete();

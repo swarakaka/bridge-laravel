@@ -22,9 +22,10 @@ beforeEach(function () {
 });
 
 afterEach(function () {
+    // Raw commands, like the bus: the connection's own key prefix must not apply.
     if (isset($this->prefix)) {
-        foreach (Redis::connection()->keys($this->prefix.':*') as $key) {
-            Redis::connection()->del($key);
+        foreach ((array) Redis::connection()->executeRaw(['KEYS', $this->prefix.':*']) as $key) {
+            Redis::connection()->executeRaw(['DEL', (string) $key]);
         }
     }
 });
@@ -66,4 +67,23 @@ it('refuses replay once trimming dropped events after Last-Event-ID', function (
 
     expect($bus->canReplayFrom(['a'], $first))->toBeFalse()
         ->and($bus->canReplayFrom(['a'], $last))->toBeTrue();
+});
+
+it('expires idle channel keys and refuses replay for ids older than the retention', function () {
+    $bus = new RedisStreamsBus(app('redis'), null, 100, $this->prefix, 60);
+    $id = $bus->publish(['a'], Envelope::make('x', []));
+    $key = $this->prefix.':stream:a';
+
+    expect((int) Redis::connection()->executeRaw(['TTL', $key]))->toBeGreaterThan(0)->toBeLessThanOrEqual(60);
+
+    Redis::connection()->executeRaw(['DEL', $key]);
+    // Recent id: any later publish would have kept the key alive, so nothing was missed.
+    expect($bus->canReplayFrom(['a'], $id))->toBeTrue()
+        // An id older than the retention may have had events that expired with the key.
+        ->and($bus->canReplayFrom(['a'], (string) (((int) explode('-', $id)[0]) - 120_000).'-0'))->toBeFalse();
+
+    $bus->forget(['a']);
+    $bus->publish(['b'], Envelope::make('x', []));
+    $bus->forget(['b']);
+    expect((int) Redis::connection()->executeRaw(['EXISTS', $this->prefix.':stream:b']))->toBe(0);
 });

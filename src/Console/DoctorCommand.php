@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Bridge\Console;
 
 use Bridge\Stream\Bus\BusManager;
+use Bridge\Stream\Bus\DatabaseBus;
 use Bridge\Stream\Bus\Envelope;
+use Bridge\Stream\Bus\RedisStreamsBus;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Support\Facades\Http;
@@ -41,6 +43,11 @@ final class DoctorCommand extends Command
             $cursor = $bus->latestCursor([$channel]);
             $id = $bus->publish([$channel], Envelope::make('bridge.doctor', ['ok' => true]));
             $received = iterator_to_array($this->toIterator($bus->read([$channel], $cursor, 100)));
+
+            // Leave nothing behind: one stream key or row set per run would accumulate.
+            if ($bus instanceof RedisStreamsBus || $bus instanceof DatabaseBus) {
+                $bus->forget([$channel]);
+            }
             $this->check("publish/read roundtrip via [{$driver}] (id {$id})", count($received) === 1);
             $this->check('replay supported', $bus->supportsReplay(), $bus->supportsReplay() ? 'Last-Event-ID replay available' : 'No replay: clients resync on reconnect');
         } catch (Throwable $e) {

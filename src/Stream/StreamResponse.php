@@ -145,9 +145,10 @@ final class StreamResponse implements Responsable
             throw new NotAcceptableException(Mode::Stream->mediaTypes());
         }
 
-        $heartbeat = $this->heartbeatMs ?? (int) $this->config->get('bridge.stream.heartbeat_ms', 15000);
+        // At least 100 ms: the heartbeat bounds each blocking bus read, and 0 would spin.
+        $heartbeat = max(100, $this->heartbeatMs ?? (int) $this->config->get('bridge.stream.heartbeat_ms', 15000));
         $maxDuration = $this->maxDurationS ?? $this->defaultMaxDuration();
-        $retry = $this->retryMs ?? (int) $this->config->get('bridge.stream.retry_ms', 3000);
+        $retry = max(0, $this->retryMs ?? (int) $this->config->get('bridge.stream.retry_ms', 3000));
         $subject = $this->subject($request);
         $protocol = (int) $this->config->get('bridge.protocol.max_version', 1);
 
@@ -177,8 +178,9 @@ final class StreamResponse implements Responsable
             if (! $this->limiter->acquire($subject)) {
                 $writer->retry(max($retry, 5000));
                 $writer->control(StreamMessage::ready($protocol, false, $heartbeat, null));
+                // No `end`: that asks for an immediate reconnect (spec §6.2). Closing
+                // after a non-final error makes the client back off, starting at `retry`.
                 $writer->control(StreamMessage::error(429, 'throttled', 'Too many open streams.', false));
-                $writer->end('closed', true);
 
                 return;
             }

@@ -35,8 +35,14 @@ final class HandleBridgeRequests
     {
         try {
             $negotiation = $this->negotiator->negotiate($request);
-        } catch (NotAcceptableException|UnsupportedProtocolVersionException $e) {
+        } catch (UnsupportedProtocolVersionException $e) {
+            // A Bridge client speaking another protocol version: refuse before the controller runs.
             return new JsonResponse($e->toBody(), 406);
+        } catch (NotAcceptableException) {
+            // This middleware runs for the whole `web` group, and not every route there
+            // renders through Bridge (downloads, feeds). Let the route answer; a Bridge
+            // response for this request still fails with 406 when it negotiates.
+            return $next($request);
         }
 
         $request->attributes->set(Negotiation::REQUEST_ATTRIBUTE, $negotiation);

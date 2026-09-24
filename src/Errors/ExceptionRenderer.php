@@ -33,8 +33,11 @@ final class ExceptionRenderer
 
         try {
             $negotiation = Negotiation::for($request);
-        } catch (NotAcceptableException|UnsupportedProtocolVersionException $negotiationError) {
+        } catch (UnsupportedProtocolVersionException $negotiationError) {
             return new JsonResponse($negotiationError->toBody(), 406);
+        } catch (NotAcceptableException) {
+            // Not a Bridge representation (e.g. a CSV route that failed): Laravel's handler decides.
+            return null;
         }
 
         if (! in_array($negotiation->mode, [Mode::Page, Mode::Json, Mode::Stream], true)) {

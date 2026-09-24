@@ -315,7 +315,9 @@ it('limits concurrent streams per user', function () {
     $frames = sseFrames(streamBody(stream($this)));
 
     expect($frames[2]['data'])->toMatchArray(['type' => 'error', 'status' => 429, 'kind' => 'throttled', 'final' => false])
-        ->and(end($frames)['data'])->toBe(['type' => 'end', 'reason' => 'closed', 'reconnect' => true]);
+        ->and(end($frames)['data']['type'])->toBe('error')
+        ->and(array_filter($frames, fn ($f) => ($f['data']['type'] ?? null) === 'end'))->toBeEmpty()
+        ->and($frames[0])->toBe(['retry' => '5000']);
 
     $limiter->release('ip:127.0.0.1');
     expect(sseFrames(streamBody(stream($this)))[1]['data']['type'])->toBe('ready');
@@ -350,6 +352,25 @@ it('authenticates stream tickets from signed urls', function () {
     $tampered = str_replace('bridge_user=42', 'bridge_user=43', $url);
     $frames = sseFrames(streamBody($this->flushHeaders()->withHeaders(['Accept' => 'text/event-stream', 'Last-Event-ID' => '0'])->get($tampered)));
     expect(array_filter($frames, fn ($f) => ($f['data']['message'] ?? null) === 'for 42'))->toBeEmpty();
+});
+
+it('authenticates stream tickets on guards without onceUsingId', function () {
+    $this->loadLaravelMigrations();
+    DB::table('users')->insert(['id' => 7, 'name' => 'Token', 'email' => 'token@example.com', 'password' => 'x']);
+    config()->set('auth.providers.users.model', User::class);
+    config()->set('auth.guards.api-token', ['driver' => 'token', 'provider' => 'users']);
+
+    Route::middleware(['web', 'bridge.ticket:api-token', 'auth:api-token'])->name('token-events')
+        ->get('/token-events', fn () => Bridge::stream()->channels(fn ($user) => ['user.'.$user->id])->maxDuration(0));
+
+    $url = $this->actingAs(User::query()->findOrFail(7))->app->make(\Bridge\Bridge::class)->streamTicket('token-events');
+    $this->app['auth']->forgetGuards();
+    auth()->logout();
+    Bridge::to('user.7')->notify('for 7');
+
+    $frames = sseFrames(streamBody($this->flushHeaders()->withHeaders(['Accept' => 'text/event-stream', 'Last-Event-ID' => '0'])->get($url)));
+
+    expect(array_filter($frames, fn ($f) => ($f['data']['message'] ?? null) === 'for 7'))->toHaveCount(1);
 });
 
 it('runs the doctor and prune commands', function () {

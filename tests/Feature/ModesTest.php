@@ -102,6 +102,16 @@ it('answers 406 for unsupported protocol versions and unacceptable types', funct
     $this->withHeaders(['Accept' => 'image/png'])->get('/customers')->assertStatus(406);
 });
 
+it('leaves non-Bridge routes in the web group alone when their Accept is not a Bridge mode', function () {
+    Route::middleware('web')->get('/export.csv', fn () => response("id,name\n1,Acme\n", 200, ['Content-Type' => 'text/csv']));
+    Route::middleware('web')->get('/export-fails.csv', fn () => abort(404));
+
+    $this->withHeaders(['Accept' => 'text/csv'])->get('/export.csv')
+        ->assertOk()
+        ->assertHeader('Content-Type', 'text/csv; charset=utf-8');
+    $this->withHeaders(['Accept' => 'text/csv'])->get('/export-fails.csv')->assertNotFound();
+});
+
 it('renders a static shell when embedding is disabled', function () {
     config()->set('bridge.shell.embed', false);
 

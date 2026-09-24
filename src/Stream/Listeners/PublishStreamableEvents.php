@@ -9,23 +9,16 @@ use Bridge\Stream\Contracts\EventBus;
 use Bridge\Stream\Contracts\ShouldStream;
 
 /**
- * Wildcard listener: any dispatched event implementing ShouldStream is published.
+ * Publishes every dispatched event implementing ShouldStream. Registered on the
+ * interface, which Laravel's dispatcher matches for object events, so it is not
+ * built for every other event the application fires.
  */
 final class PublishStreamableEvents
 {
     public function __construct(private readonly EventBus $bus) {}
 
-    /**
-     * @param  array<int, mixed>  $payload
-     */
-    public function handle(string $eventName, array $payload): void
+    public function handle(ShouldStream $event): void
     {
-        $event = $payload[0] ?? null;
-
-        if (! $event instanceof ShouldStream) {
-            return;
-        }
-
         $channels = array_map('strval', $event->streamOn());
 
         if ($channels === []) {

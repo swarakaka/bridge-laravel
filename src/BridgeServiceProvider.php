@@ -25,6 +25,7 @@ use Bridge\Stream\Bus\BusManager;
 use Bridge\Stream\ChannelAuthorizer;
 use Bridge\Stream\ConnectionLimiter;
 use Bridge\Stream\Contracts\EventBus;
+use Bridge\Stream\Contracts\ShouldStream;
 use Bridge\Stream\Listeners\PublishStreamableEvents;
 use Bridge\Support\Version;
 use Bridge\Testing\BridgeTestingMacros;
@@ -101,6 +102,8 @@ final class BridgeServiceProvider extends ServiceProvider
                 $app->make(LoggerInterface::class),
                 (string) $config->get('bridge.ssr.url', 'http://127.0.0.1:13714'),
                 (float) $config->get('bridge.ssr.timeout', 2.0),
+                $app->make(CacheFactory::class)->store(),
+                max(0, (int) $config->get('bridge.ssr.cooldown_s', 10)),
             );
         });
 
@@ -136,7 +139,7 @@ final class BridgeServiceProvider extends ServiceProvider
         $this->app->booted(fn (Application $app) => $app->make(Bridge::class)->freezeBootShared());
         $this->app->make(Dispatcher::class)->listen(RequestHandled::class, fn () => $this->app->make(Bridge::class)->resetRequestShared());
 
-        $this->app->make(Dispatcher::class)->listen('*', PublishStreamableEvents::class);
+        $this->app->make(Dispatcher::class)->listen(ShouldStream::class, PublishStreamableEvents::class);
 
         if ($this->app->runningInConsole()) {
             $this->commands([InstallCommand::class, DoctorCommand::class, PruneStreamEventsCommand::class, SsrCommand::class]);

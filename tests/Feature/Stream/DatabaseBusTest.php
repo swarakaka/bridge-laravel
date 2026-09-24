@@ -96,6 +96,12 @@ it('knows when pruning or a foreign id makes replay incomplete', function () {
         ->and($this->bus->canReplayFrom(['a'], 'garbage'))->toBeFalse();
 });
 
+it('leaves no rows behind after bridge:doctor', function () {
+    $this->artisan('bridge:doctor')->assertSuccessful();
+
+    expect(DB::table('bridge_stream_events')->count())->toBe(0);
+});
+
 it('polls until the block deadline when nothing arrives', function () {
     $started = microtime(true);
 

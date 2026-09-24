@@ -96,3 +96,35 @@ it('binds the http gateway only when ssr is enabled', function () {
     $this->app->forgetInstance(SsrGateway::class);
     expect($this->app->make(SsrGateway::class))->toBeInstanceOf(NullSsrGateway::class);
 });
+
+it('skips ssr for a cooldown after the server could not be reached', function () {
+    config()->set('bridge.ssr.enabled', true);
+    $calls = 0;
+    Http::fake(function () use (&$calls) {
+        $calls++;
+
+        throw new ConnectionException('timed out');
+    });
+    Log::spy();
+    $cache = app('cache')->store('array');
+    $this->app->instance(SsrGateway::class, new HttpSsrGateway(app(Factory::class), app('log'), 'http://ssr.test', 2.0, $cache, 10));
+
+    $this->html('/customers')->assertSee('<div id="app" data-bridge></div>', false);
+    $this->html('/customers')->assertSee('<div id="app" data-bridge></div>', false);
+    expect($calls)->toBe(1);
+
+    $cache->forget(HttpSsrGateway::DOWN_KEY);
+    $this->html('/customers');
+    expect($calls)->toBe(2);
+});
+
+it('keeps trying when the server answers with an error status', function () {
+    config()->set('bridge.ssr.enabled', true);
+    Http::fake(['*' => Http::response('boom', 500)]);
+    Log::spy();
+    $this->app->instance(SsrGateway::class, new HttpSsrGateway(app(Factory::class), app('log'), 'http://ssr.test', 2.0, app('cache')->store('array'), 10));
+
+    $this->html('/customers');
+    $this->html('/customers');
+    Http::assertSentCount(2);
+});

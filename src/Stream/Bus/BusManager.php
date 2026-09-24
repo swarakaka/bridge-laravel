@@ -37,7 +37,8 @@ final class BusManager extends Manager
         return new DatabaseBus(
             $this->container->make(DatabaseManager::class)->connection(is_string($connection) ? $connection : null),
             (string) ($options['table'] ?? 'bridge_stream_events'),
-            (int) ($options['poll_ms'] ?? 1000),
+            // At least 10 ms between polls, whatever the configuration says.
+            max(10, (int) ($options['poll_ms'] ?? 1000)),
             (string) $this->config->get('bridge.stream.prefix', 'bridge'),
             (int) ($options['lookback'] ?? 200),
         );
@@ -51,8 +52,9 @@ final class BusManager extends Manager
         return new RedisStreamsBus(
             $this->container->make(RedisFactory::class),
             is_string($connection) ? $connection : null,
-            (int) ($options['maxlen'] ?? 1000),
+            max(1, (int) ($options['maxlen'] ?? 1000)),
             (string) $this->config->get('bridge.stream.prefix', 'bridge'),
+            isset($options['retain_minutes']) ? max(1, (int) $options['retain_minutes']) * 60 : null,
         );
     }
 }

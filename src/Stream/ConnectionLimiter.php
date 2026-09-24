@@ -44,8 +44,16 @@ final class ConnectionLimiter
 
         $key = $this->key($subject);
 
-        if ((int) $this->cache->get($key, 0) > 0) {
-            $this->cache->decrement($key);
+        if ((int) $this->cache->get($key, 0) <= 0) {
+            return;
+        }
+
+        // get-then-decrement is not atomic: two releases can both pass the check.
+        // Undo a decrement that went below zero instead of trusting the read.
+        $count = $this->cache->decrement($key);
+
+        if ($count !== false && (int) $count < 0) {
+            $this->cache->increment($key, -(int) $count);
         }
     }
 

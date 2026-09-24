@@ -21,6 +21,8 @@ final class RedisStreamsBus implements EventBus, ReplayWindow
         private readonly ?string $connection = null,
         private readonly int $maxLen = 1000,
         private readonly string $prefix = 'bridge',
+        /** Seconds a channel's key lives after its last publish; null keeps keys forever. */
+        private readonly ?int $retainSeconds = null,
     ) {}
 
     public function publish(array $channels, Envelope $envelope): string
@@ -42,6 +44,11 @@ final class RedisStreamsBus implements EventBus, ReplayWindow
             }
 
             $id = (string) $this->raw($args);
+
+            // Sliding expiry: channels nobody publishes to (per-user, per-tenant) do not pile up.
+            if ($this->retainSeconds !== null) {
+                $this->raw(['EXPIRE', $this->key($channel), (string) $this->retainSeconds]);
+            }
         }
 
         return $id;
@@ -128,6 +135,13 @@ final class RedisStreamsBus implements EventBus, ReplayWindow
             $key = $this->key($channel);
 
             if ((int) $this->raw(['EXISTS', $key]) === 0) {
+                // Every publish pushes the expiry to at least retain seconds later, so a
+                // missing key means nothing was published after an id younger than that.
+                // An older id may have had events that expired with the key.
+                if ($this->retainSeconds !== null && (int) $match[1] < $this->nowMs() - $this->retainSeconds * 1000) {
+                    return false;
+                }
+
                 continue;
             }
 
@@ -147,6 +161,18 @@ final class RedisStreamsBus implements EventBus, ReplayWindow
         }
 
         return true;
+    }
+
+    /**
+     * Delete the channels' streams (used by bridge:doctor after its roundtrip).
+     *
+     * @param  list<string>  $channels
+     */
+    public function forget(array $channels): void
+    {
+        foreach ($channels as $channel) {
+            $this->raw(['DEL', $this->key($channel)]);
+        }
     }
 
     private function nowMs(): int

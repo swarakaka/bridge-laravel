@@ -42,7 +42,7 @@ abstract class TestCase extends Orchestra
 
     public function json_mode(string $method, string $uri, array $data = [], array $headers = []): TestResponse
     {
-        $server = $this->transformHeadersToServerVars(['Accept' => 'application/json'] + $headers);
+        $server = $this->flushHeaders()->transformHeadersToServerVars(['Accept' => 'application/json'] + $headers);
 
         return $this->call($method, $uri, $data, [], [], $server);
     }

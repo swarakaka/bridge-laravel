@@ -157,6 +157,10 @@ final class PageResponse implements Responsable
 
         $meta = array_merge($meta, $resolved->mergeMeta());
 
+        if ($resolved->scroll !== []) {
+            $meta['scroll'] = $resolved->scroll;
+        }
+
         if ($resolved->once !== []) {
             $meta['once'] = $resolved->once;
         }

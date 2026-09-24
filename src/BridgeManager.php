@@ -16,6 +16,7 @@ use Bridge\Props\Lazy;
 use Bridge\Props\Merge;
 use Bridge\Props\Once;
 use Bridge\Props\PropResolver;
+use Bridge\Props\Scroll;
 use Bridge\Props\Serializer;
 use Bridge\Representation\RepresenterRegistry;
 use Bridge\Stream\ChannelAuthorizer;
@@ -219,6 +220,15 @@ class BridgeManager
     public function merge(mixed $value): Merge
     {
         return new Merge($value);
+    }
+
+    /**
+     * An infinite-scroll list: a paginator (or a resource collection over one)
+     * appended page by page, with `meta.scroll` describing both ends.
+     */
+    public function scroll(mixed $value, ?string $pageName = null): Scroll
+    {
+        return new Scroll($value, $pageName);
     }
 
     /** Merged key by key at every depth on opted-in partial reloads. */

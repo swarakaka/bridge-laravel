@@ -136,6 +136,22 @@ it('produces the history fixtures', function () {
     expect($cleared->json())->toEqual(protocolFixture('page/clear-history.json'));
 });
 
+it('produces the scroll fixture', function () {
+    Route::middleware('web')->get('/scroll/customers', fn () => Bridge::render('Customers/Index', [
+        'customers' => Bridge::scroll(CustomerResource::collection(customersPaginator([
+            ['id' => 21, 'name' => 'Acme', 'email' => 'hello@acme.test'],
+            ['id' => 22, 'name' => 'Globex', 'email' => 'info@globex.test'],
+        ]))),
+    ]));
+
+    $response = $this->page('/scroll/customers?page=2', [Headers::ONLY => 'customers', Headers::COMPONENT => 'Customers/Index'])->assertOk();
+    $expected = protocolFixture('page/scroll.json');
+    $expected['url'] = '/scroll/customers?page=2';
+
+    validateAgainst('page', (string) $response->getContent());
+    expect($response->json())->toEqual($expected);
+});
+
 it('produces the deferred-once fixture for a client that holds the value', function () {
     Route::middleware('web')->get('/dashboard', fn () => Bridge::render('Dashboard', [
         'recentCustomers' => [['id' => 22, 'name' => 'Globex']],

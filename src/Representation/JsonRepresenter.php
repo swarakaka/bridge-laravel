@@ -22,7 +22,7 @@ final class JsonRepresenter implements Representer
     {
         $props = $document->props;
         // Merge hints only concern page clients (spec/page.md §3).
-        $meta = array_diff_key($document->meta, ['merge' => true, 'prepend' => true, 'deepMerge' => true, 'matchOn' => true]);
+        $meta = array_diff_key($document->meta, ['merge' => true, 'prepend' => true, 'deepMerge' => true, 'matchOn' => true, 'scroll' => true]);
 
         if ($options->jsonRoot !== null && array_key_exists($options->jsonRoot, $props)) {
             $root = $props[$options->jsonRoot];

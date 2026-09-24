@@ -36,6 +36,7 @@ final class PropResolver
         $prepend = [];
         $deepMerge = [];
         $matchOn = [];
+        $scroll = [];
         $once = [];
         // Held once keys matter only to page clients; HTML shells always carry the values.
         $heldKeys = $mode === Mode::Page ? $this->heldOnceKeys($request) : [];
@@ -108,14 +109,29 @@ final class PropResolver
             }
 
             if ($value instanceof PropHint) {
-                $value = $this->unwrap($key, $value);
+                $hint = $value;
+                $value = $this->unwrap($key, $hint);
+
+                // Scroll props describe their ends and choose a match path from the resolved page.
+                if ($hint instanceof Scroll) {
+                    $described = $hint->describe($key, $value);
+                    $matchOn[$key] = $described['matchOn'];
+
+                    if ($described['matchOn'] === []) {
+                        unset($matchOn[$key]);
+                    }
+
+                    if ($mode !== Mode::Json) {
+                        $scroll[$key] = $described['scroll'];
+                    }
+                }
             }
 
             $serialized = $this->serializer->serialize($value, $request);
             $resolved[$key] = $this->applyNestedSelection($key, $serialized, $selection);
         }
 
-        return new ResolvedProps($resolved, $deferred, $selection->isPartial(), $merge, $once, $prepend, $deepMerge, $matchOn);
+        return new ResolvedProps($resolved, $deferred, $selection->isPartial(), $merge, $once, $prepend, $deepMerge, $matchOn, $scroll);
     }
 
     /**

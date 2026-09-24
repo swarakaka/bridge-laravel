@@ -16,6 +16,7 @@ final class ResolvedProps
      * @param  list<string>  $prepend  keys the client prepends on partial reloads
      * @param  list<string>  $deepMerge  keys the client deep-merges on partial reloads
      * @param  array<string, list<string>>  $matchOn  match paths per merge key
+     * @param  array<string, array{pageName: string, dataPath: string, currentPage: int|string|null, previousPage: int|string|null, nextPage: int|string|null}>  $scroll  infinite-scroll ends (PLAN §13.4)
      * @param  array<string, array{key: string, expiresAt: int|null}>  $once  once props considered (spec/page.md §11)
      */
     public function __construct(
@@ -27,6 +28,7 @@ final class ResolvedProps
         public readonly array $prepend = [],
         public readonly array $deepMerge = [],
         public readonly array $matchOn = [],
+        public readonly array $scroll = [],
     ) {}
 
     /**

@@ -226,6 +226,11 @@ final class StreamResponse implements Responsable
 
         $channels = array_values(array_unique($channels));
         $lastEventId = $request->headers->get(Headers::LAST_EVENT_ID);
+
+        if ($lastEventId === null || $lastEventId === '') {
+            $query = $request->query(Headers::LAST_EVENT_ID_QUERY);
+            $lastEventId = is_string($query) ? $query : null;
+        }
         $replay = $lastEventId !== null && $lastEventId !== '' && $this->bus->supportsReplay()
             && (! $this->bus instanceof ReplayWindow || $this->bus->canReplayFrom($channels, $lastEventId));
         $live = $this->bus->latestCursor($channels);

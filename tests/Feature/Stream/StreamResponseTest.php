@@ -143,6 +143,19 @@ it('sends an event that arrives behind the cursor without an id', function () {
         ->and($events[1]['data']['keys'])->toBe(['b']);
 });
 
+it('reads Last-Event-ID from the lastEventId query when the header is absent', function () {
+    Bridge::to('customers')->notify('one');
+    Bridge::to('customers')->notify('two');
+    $messages = fn ($response) => array_values(array_map(
+        fn ($f) => $f['data']['message'],
+        array_filter(sseFrames(streamBody($response)), fn ($f) => ($f['data']['type'] ?? null) === 'notification'),
+    ));
+
+    expect($messages(stream($this, '/events?lastEventId=1')))->toBe(['two'])
+        // The header wins when both are present.
+        ->and($messages(stream($this, '/events?lastEventId=1', ['Last-Event-ID' => '0'])))->toBe(['one', 'two']);
+});
+
 it('publishes application events, props and invalidations through the facade', function () {
     Bridge::to(['customers', 'user.1'])->event('customer.created', ['id' => 12]);
     Bridge::to('customers')->prop('unreadCount', 3);
@@ -325,6 +338,11 @@ it('authenticates stream tickets from signed urls', function () {
 
     $ticketed = $this->flushHeaders()->withHeaders(['Accept' => 'text/event-stream', 'Last-Event-ID' => '0'])->get($url);
     $frames = sseFrames(streamBody($ticketed));
+    expect(array_filter($frames, fn ($f) => ($f['data']['message'] ?? null) === 'for 42'))->toHaveCount(1);
+
+    // A reconnecting EventSource appends lastEventId; the ticket stays valid.
+    $this->app['auth']->forgetGuards();
+    $frames = sseFrames(streamBody($this->flushHeaders()->withHeaders(['Accept' => 'text/event-stream'])->get($url.'&lastEventId=0')));
     expect(array_filter($frames, fn ($f) => ($f['data']['message'] ?? null) === 'for 42'))->toHaveCount(1);
 
     // The in-process guard keeps the user between test requests; reset it as a new client would.

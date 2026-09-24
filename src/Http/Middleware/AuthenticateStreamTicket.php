@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Bridge\Http\Middleware;
 
+use Bridge\Support\Headers;
 use Closure;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Contracts\Routing\UrlGenerator;
@@ -27,7 +28,8 @@ final class AuthenticateStreamTicket
     {
         $userId = $request->query(self::USER_PARAMETER);
 
-        if (is_string($userId) && $userId !== '' && $this->urls->hasValidSignature($request)) {
+        // lastEventId is appended by the client on reconnect; it grants nothing, so it is not signed.
+        if (is_string($userId) && $userId !== '' && $this->urls->hasValidSignature($request, true, [Headers::LAST_EVENT_ID_QUERY])) {
             $this->auth->guard($guard)->onceUsingId($userId);
         }
 

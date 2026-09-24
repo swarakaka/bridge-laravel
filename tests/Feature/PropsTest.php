@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Bridge\Facades\Bridge;
 use Bridge\Negotiation\Mode;
 use Bridge\Support\Headers;
+use Bridge\Tests\Fixtures\Http\CustomerResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -135,4 +136,16 @@ it('renders empty props as an object', function () {
 
     Bridge::flushShared();
     expect($this->json_mode('GET', '/empty')->getContent())->toBe('{"data":{}}');
+});
+
+it('serializes resource collections with extra data as Laravel does, and plain ones as arrays', function () {
+    $rows = collect([['id' => 1, 'name' => 'Acme', 'email' => 'a@acme.test']]);
+    Route::middleware('web')->get('/collections', fn () => Bridge::render('Collections', [
+        'plain' => CustomerResource::collection($rows),
+        'extra' => CustomerResource::collection($rows)->additional(['meta' => ['total' => 1]]),
+    ]));
+
+    $this->json_mode('GET', '/collections')
+        ->assertJsonPath('data.plain', [['id' => 1, 'name' => 'Acme', 'email' => 'a@acme.test']])
+        ->assertJsonPath('data.extra', ['data' => [['id' => 1, 'name' => 'Acme', 'email' => 'a@acme.test']], 'meta' => ['total' => 1]]);
 });

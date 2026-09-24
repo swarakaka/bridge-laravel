@@ -12,6 +12,7 @@ use Bridge\Stream\Contracts\EventBus;
 use Bridge\Stream\Contracts\ReplayWindow;
 use Bridge\Stream\Contracts\ShouldStream;
 use Bridge\Stream\StreamMessage;
+use Bridge\Stream\StreamResponse;
 use Bridge\Stream\StreamWriter;
 use Bridge\Tests\TestCase;
 use Illuminate\Auth\AuthenticationException;
@@ -321,6 +322,14 @@ it('limits concurrent streams per user', function () {
 
     $limiter->release('ip:127.0.0.1');
     expect(sseFrames(streamBody(stream($this)))[1]['data']['type'])->toBe('ready');
+});
+
+it('keeps no per-stream shutdown state once streams have finished', function () {
+    foreach (range(1, 3) as $i) {
+        streamBody(stream($this));
+    }
+
+    expect(StreamResponse::openSlotCount())->toBe(0);
 });
 
 it('authenticates stream tickets from signed urls', function () {

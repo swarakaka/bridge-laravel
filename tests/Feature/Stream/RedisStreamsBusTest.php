@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Bridge\Stream\Bus\BusManager;
 use Bridge\Stream\Bus\Cursor;
 use Bridge\Stream\Bus\Envelope;
 use Bridge\Stream\Bus\RedisStreamsBus;
@@ -86,4 +87,15 @@ it('expires idle channel keys and refuses replay for ids older than the retentio
     $bus->publish(['b'], Envelope::make('x', []));
     $bus->forget(['b']);
     expect((int) Redis::connection()->executeRaw(['EXISTS', $this->prefix.':stream:b']))->toBe(0);
+});
+
+it('never blocks longer than the redis client read timeout', function () {
+    config()->set('bridge.stream.drivers.redis.connection', 'default');
+    config()->set('database.redis.default.read_timeout', 1);
+    $bus = app(BusManager::class)->driver('redis');
+
+    $started = microtime(true);
+    // Asked to block for 5 s; capped at 0.5 s, below the 1 s read timeout, so no exception.
+    expect(iterator_to_array($bus->read(['quiet'], $bus->latestCursor(['quiet']), 5000)))->toBe([])
+        ->and(microtime(true) - $started)->toBeLessThan(1.0);
 });

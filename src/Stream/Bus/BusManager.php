@@ -55,6 +55,26 @@ final class BusManager extends Manager
             max(1, (int) ($options['maxlen'] ?? 1000)),
             (string) $this->config->get('bridge.stream.prefix', 'bridge'),
             isset($options['retain_minutes']) ? max(1, (int) $options['retain_minutes']) * 60 : null,
+            $this->maxBlockMs(is_string($connection) ? $connection : 'default'),
         );
+    }
+
+    /**
+     * Half a second below the connection's read timeout: `read_timeout`
+     * (phpredis) or `read_write_timeout` (predis), in seconds, else PHP's
+     * `default_socket_timeout`, which both clients fall back to. A value of 0
+     * or -1 means no timeout.
+     */
+    private function maxBlockMs(string $connection): ?int
+    {
+        $timeout = $this->config->get("database.redis.{$connection}.read_timeout")
+            ?? $this->config->get("database.redis.{$connection}.read_write_timeout")
+            ?? ini_get('default_socket_timeout');
+
+        if (! is_numeric($timeout) || (float) $timeout <= 0) {
+            return null;
+        }
+
+        return max(100, (int) ((float) $timeout * 1000) - 500);
     }
 }

@@ -102,6 +102,17 @@ it('leaves no rows behind after bridge:doctor', function () {
     expect(DB::table('bridge_stream_events')->count())->toBe(0);
 });
 
+it('stores channel names longer than the column under a hash and reads them back', function () {
+    $long = 'tenant.'.str_repeat('x', 250);
+    $id = $this->bus->publish([$long], Envelope::make('x', ['n' => 1]));
+
+    $stored = DB::table('bridge_stream_events')->where('id', $id)->value('channel');
+    expect(strlen($stored))->toBeLessThanOrEqual(DatabaseBus::CHANNEL_COLUMN_LENGTH);
+
+    $read = iterator_to_array($this->bus->read([$long], Cursor::start(), 0));
+    expect($read)->toHaveCount(1)->and($read[0]->channel)->toBe($long);
+});
+
 it('polls until the block deadline when nothing arrives', function () {
     $started = microtime(true);
 

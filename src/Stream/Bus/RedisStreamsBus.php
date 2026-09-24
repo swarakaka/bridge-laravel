@@ -23,6 +23,12 @@ final class RedisStreamsBus implements EventBus, ReplayWindow
         private readonly string $prefix = 'bridge',
         /** Seconds a channel's key lives after its last publish; null keeps keys forever. */
         private readonly ?int $retainSeconds = null,
+        /**
+         * Longest XREAD BLOCK, in ms. Blocking past the client's read timeout makes
+         * phpredis/predis throw, so this stays below it; the stream loop simply
+         * reads again and still sends heartbeats on time.
+         */
+        private readonly ?int $maxBlockMs = null,
     ) {}
 
     public function publish(array $channels, Envelope $envelope): string
@@ -68,7 +74,7 @@ final class RedisStreamsBus implements EventBus, ReplayWindow
         }
 
         $reply = $this->raw(array_merge(
-            ['XREAD', 'BLOCK', (string) max(1, $blockMs), 'STREAMS'],
+            ['XREAD', 'BLOCK', (string) max(1, $this->maxBlockMs === null ? $blockMs : min($blockMs, $this->maxBlockMs)), 'STREAMS'],
             $keys,
             $ids,
         ));

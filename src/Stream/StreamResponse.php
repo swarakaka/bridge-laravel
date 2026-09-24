@@ -167,15 +167,21 @@ final class StreamResponse implements Responsable
 
             $writer = new StreamWriter($this->serializer, $request, $this->output, $this->output === null);
 
+            // Subscriptions renew a short lease on every heartbeat, so a killed worker's
+            // slot frees itself quickly; producers send no heartbeats and keep the
+            // lease for the whole stream.
+            $leaseSeconds = $this->producer === null ? self::leaseSeconds($heartbeat) : null;
+            $lease = $this->limiter->acquire($subject, $leaseSeconds);
+
             $released = false;
-            $release = function () use (&$released, $subject): void {
+            $release = function () use (&$released, $subject, $lease): void {
                 if (! $released) {
                     $released = true;
-                    $this->limiter->release($subject);
+                    $this->limiter->release($subject, $lease);
                 }
             };
 
-            if (! $this->limiter->acquire($subject)) {
+            if ($lease === null) {
                 $writer->retry(max($retry, 5000));
                 $writer->control(StreamMessage::ready($protocol, false, $heartbeat, null));
                 // No `end`: that asks for an immediate reconnect (spec §6.2). Closing
@@ -185,8 +191,8 @@ final class StreamResponse implements Responsable
                 return;
             }
 
-            // Backstop for fatal errors or exit(): the shutdown function still runs.
-            register_shutdown_function($release);
+            // Backstop for fatal errors or exit(), where `finally` does not run.
+            $slot = self::holdSlot($release);
 
             try {
                 $writer->retry($retry);
@@ -199,16 +205,67 @@ final class StreamResponse implements Responsable
                     return;
                 }
 
-                $this->subscribe($request, $writer, $heartbeat, $maxDuration, $protocol);
+                $renew = fn () => $this->limiter->renew($subject, $lease, (int) $leaseSeconds);
+                $this->subscribe($request, $writer, $heartbeat, $maxDuration, $protocol, $renew);
             } finally {
                 $release();
+                unset(self::$openSlots[$slot]);
             }
         });
 
         return $response;
     }
 
-    private function subscribe(Request $request, StreamWriter $writer, int $heartbeat, int $maxDuration, int $protocol): void
+    /**
+     * Releases of the streams open in this process. One shutdown function for
+     * the whole process: a function per stream would pile up in long-lived
+     * workers (Octane), where shutdown functions only run when the worker exits.
+     *
+     * @var array<int, Closure(): void>
+     */
+    private static array $openSlots = [];
+
+    private static bool $shutdownRegistered = false;
+
+    private static int $nextSlot = 0;
+
+    /**
+     * @param  Closure(): void  $release
+     */
+    private static function holdSlot(Closure $release): int
+    {
+        if (! self::$shutdownRegistered) {
+            self::$shutdownRegistered = true;
+            register_shutdown_function(static function (): void {
+                foreach (self::$openSlots as $pending) {
+                    $pending();
+                }
+                self::$openSlots = [];
+            });
+        }
+
+        $slot = ++self::$nextSlot;
+        self::$openSlots[$slot] = $release;
+
+        return $slot;
+    }
+
+    /** @internal for tests */
+    public static function openSlotCount(): int
+    {
+        return count(self::$openSlots);
+    }
+
+    /** Three heartbeats and a margin: long enough to survive one slow iteration. */
+    private static function leaseSeconds(int $heartbeatMs): int
+    {
+        return (int) ceil($heartbeatMs * 3 / 1000) + 5;
+    }
+
+    /**
+     * @param  Closure(): void  $renew
+     */
+    private function subscribe(Request $request, StreamWriter $writer, int $heartbeat, int $maxDuration, int $protocol, Closure $renew): void
     {
         $channels = $this->resolveChannels($request);
         $requested = $this->requestedChannels($request);
@@ -248,6 +305,7 @@ final class StreamResponse implements Responsable
 
         $now = $this->clock ?? static fn (): float => microtime(true);
         $started = $now();
+        $renewedAt = $started;
         $deadline = $started + $maxDuration;
         $seen = [];
 
@@ -306,6 +364,11 @@ final class StreamResponse implements Responsable
 
             if ($writer->idleMs() >= $heartbeat) {
                 $writer->heartbeat();
+            }
+
+            if ($now() - $renewedAt >= $heartbeat / 1000) {
+                $renew();
+                $renewedAt = $now();
             }
         }
     }

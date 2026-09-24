@@ -172,8 +172,21 @@ final class DatabaseBus implements EventBus, ReplayWindow
         return $this->db->table($this->table);
     }
 
+    /** Width of the `channel` column in the migration. */
+    public const CHANNEL_COLUMN_LENGTH = 190;
+
+    /**
+     * Stored channel key. Keys longer than the column (a long prefix plus a
+     * long channel name) are shortened to a hash, the same way on write and read.
+     */
     private function key(string $channel): string
     {
-        return $this->prefix.':'.$channel;
+        $key = $this->prefix.':'.$channel;
+
+        if (strlen($key) <= self::CHANNEL_COLUMN_LENGTH) {
+            return $key;
+        }
+
+        return substr($this->prefix, 0, 100).':#'.hash('sha256', $channel);
     }
 }

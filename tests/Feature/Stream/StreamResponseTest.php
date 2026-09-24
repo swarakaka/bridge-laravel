@@ -339,7 +339,8 @@ it('authenticates stream tickets from signed urls', function () {
 
     Route::middleware(['web', 'bridge.ticket'])->name('events')->get('/ticketed', fn () => Bridge::stream()->channels(fn ($user) => ['user.'.($user?->id ?? 'guest')])->maxDuration(0));
 
-    $url = $this->actingAs($user)->app->make(\Bridge\Bridge::class)->streamTicket('events', ['scope' => 'demo']);
+    $this->actingAs($user);
+    $url = $this->app->make(\Bridge\Bridge::class)->streamTicket('events', ['scope' => 'demo']);
     expect($url)->toContain('bridge_user=42')->toContain('signature=');
 
     // A new request (no session) presents the ticket.
@@ -372,7 +373,8 @@ it('authenticates stream tickets on guards without onceUsingId', function () {
     Route::middleware(['web', 'bridge.ticket:api-token', 'auth:api-token'])->name('token-events')
         ->get('/token-events', fn () => Bridge::stream()->channels(fn ($user) => ['user.'.$user->id])->maxDuration(0));
 
-    $url = $this->actingAs(User::query()->findOrFail(7))->app->make(\Bridge\Bridge::class)->streamTicket('token-events');
+    $this->actingAs(User::query()->findOrFail(7));
+    $url = $this->app->make(\Bridge\Bridge::class)->streamTicket('token-events');
     $this->app['auth']->forgetGuards();
     auth()->logout();
     Bridge::to('user.7')->notify('for 7');

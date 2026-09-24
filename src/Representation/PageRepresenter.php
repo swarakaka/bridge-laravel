@@ -40,7 +40,7 @@ final class PageRepresenter implements Representer
         }
 
         $response = new RedirectResponse($redirect->url, 303);
-        $response->headers->set('Vary', Headers::VARY);
+        $response->headers->set('Vary', Headers::PAGE_VARY);
         $response->headers->set('Cache-Control', 'private, no-store');
 
         return $response;
@@ -100,7 +100,7 @@ final class PageRepresenter implements Representer
     private function decorate(JsonResponse $response, Negotiation $negotiation): void
     {
         $response->headers->set('Content-Type', $negotiation->contentType());
-        $response->headers->set('Vary', Headers::VARY);
+        $response->headers->set('Vary', Headers::PAGE_VARY);
         $response->headers->set('Cache-Control', 'private, no-cache');
     }
 }

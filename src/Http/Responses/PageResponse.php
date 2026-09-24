@@ -159,6 +159,10 @@ final class PageResponse implements Responsable
             $meta['merge'] = $resolved->merge;
         }
 
+        if ($resolved->once !== []) {
+            $meta['once'] = $resolved->once;
+        }
+
         // History members only concern clients that keep pages in browser history.
         if (in_array($negotiation->mode, [Mode::Page, Mode::Html], true)) {
             $meta = array_merge($meta, $this->bridge->historyMeta($request, $this->encryptHistory));

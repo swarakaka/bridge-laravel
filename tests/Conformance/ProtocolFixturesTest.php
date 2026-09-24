@@ -59,7 +59,7 @@ beforeEach(function () {
 
     Route::middleware('web')->get('/customers/{id}', fn () => Bridge::render('Customers/Show', [
         'customer' => CustomerResource::make($rows[0]),
-    ]));
+    ]))->whereNumber('id');
 
     Route::middleware('web')->get('/', fn () => Bridge::render('Dashboard', [
         'recentCustomers' => [['id' => 22, 'name' => 'Globex']],
@@ -135,6 +135,20 @@ it('produces the history fixtures', function () {
     validateAgainst('page', (string) $cleared->getContent());
     expect($cleared->json())->toEqual(protocolFixture('page/clear-history.json'));
 });
+
+it('produces the once fixtures', function (string $fixture, array $headers) {
+    Route::middleware('web')->get('/customers/create', fn () => Bridge::render('Customers/Create', [
+        'statuses' => Bridge::once(fn () => ['active', 'inactive'], key: 'customer-statuses'),
+    ]));
+
+    $response = $this->page('/customers/create', $headers)->assertOk();
+
+    validateAgainst('page', (string) $response->getContent());
+    expect($response->json())->toEqual(protocolFixture("page/{$fixture}"));
+})->with([
+    'full' => ['once-full.json', []],
+    'held' => ['once-held.json', [Headers::ONCE => 'customer-statuses, other']],
+]);
 
 it('embeds the same page object in the HTML shell', function () {
     $this->html('/customers?page=2')->assertBridgePage('Customers/Index', function ($page) {

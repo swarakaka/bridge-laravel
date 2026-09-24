@@ -14,6 +14,7 @@ use Bridge\Props\Always;
 use Bridge\Props\Deferred;
 use Bridge\Props\Lazy;
 use Bridge\Props\Merge;
+use Bridge\Props\Once;
 use Bridge\Props\PropResolver;
 use Bridge\Props\Serializer;
 use Bridge\Representation\RepresenterRegistry;
@@ -25,6 +26,7 @@ use Bridge\Stream\StreamWriter;
 use Bridge\Support\Headers;
 use Bridge\Support\Version;
 use Closure;
+use DateInterval;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Container\Container;
@@ -217,6 +219,15 @@ class BridgeManager
     public function merge(mixed $value): Merge
     {
         return new Merge($value);
+    }
+
+    /**
+     * Sent once, then reused by the client until `$ttl` (seconds or an
+     * interval) passes. `$key` shares one value between props or pages.
+     */
+    public function once(mixed $value, ?string $key = null, DateInterval|int|null $ttl = null): Once
+    {
+        return new Once($value, $key, $ttl);
     }
 
     public function mode(?Request $request = null): Mode

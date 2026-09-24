@@ -19,12 +19,19 @@ final class Headers
 
     public const LOCATION = 'X-Bridge-Location';
 
+    /** Once keys the client holds (spec/page.md §11). Page mode only. */
+    public const ONCE = 'X-Bridge-Once';
+
     public const LAST_EVENT_ID = 'Last-Event-ID';
 
     /** Query fallback for Last-Event-ID: a new native EventSource cannot send the header. */
     public const LAST_EVENT_ID_QUERY = 'lastEventId';
 
+    /** `Vary` on JSON responses. */
     public const VARY = 'Accept, X-Bridge-Only, X-Bridge-Except, X-Bridge-Component';
+
+    /** `Vary` on page responses: the JSON value plus X-Bridge-Once. */
+    public const PAGE_VARY = 'Accept, X-Bridge-Only, X-Bridge-Except, X-Bridge-Component, X-Bridge-Once';
 
     /** Element id of the embedded page object in an HTML shell. */
     public const EMBEDDED_PAGE_ID = 'bridge-page';

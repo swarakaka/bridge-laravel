@@ -78,7 +78,9 @@ class HandleBridgeRequests
             $this->bridge->carryClearHistory($request, $response);
         }
 
-        if (in_array($negotiation->mode, [Mode::Page, Mode::Json], true)) {
+        if ($negotiation->mode === Mode::Page) {
+            $this->addVary($response, Headers::PAGE_VARY);
+        } elseif ($negotiation->mode === Mode::Json) {
             $this->addVary($response, Headers::VARY);
         } elseif ($negotiation->mode === Mode::Html) {
             $this->addVary($response, 'Accept');

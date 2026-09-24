@@ -11,6 +11,7 @@ use Bridge\Props\Always;
 use Bridge\Props\Deferred;
 use Bridge\Props\Lazy;
 use Bridge\Props\Merge;
+use Bridge\Props\Once;
 use Bridge\Stream\Publisher;
 use Bridge\Stream\StreamResponse;
 use Closure;
@@ -36,6 +37,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static Deferred defer(Closure $callback, string $group = 'default')
  * @method static Always always(mixed $value)
  * @method static Merge merge(mixed $value)
+ * @method static Once once(mixed $value, ?string $key = null, \DateInterval|int|null $ttl = null)
  * @method static Mode mode(?Request $request = null)
  * @method static void encryptHistory(bool $encrypt = true, ?Request $request = null)
  * @method static void clearHistory(?Request $request = null)

@@ -66,7 +66,7 @@ it('serves the page object for bridge requests', function () {
 
     $response->assertOk()
         ->assertHeader('Content-Type', 'application/vnd.bridge+json; v=1')
-        ->assertHeader('Vary', Headers::VARY)
+        ->assertHeader('Vary', Headers::PAGE_VARY)
         ->assertHeader('Cache-Control', 'no-cache, private')
         ->assertBridgePage('Customers/Index', fn ($page) => $page
             ->url('/customers?page=2')

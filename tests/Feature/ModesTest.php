@@ -45,6 +45,22 @@ it('serves the HTML shell with the page embedded', function () {
             ->where('filters.search', null));
 });
 
+it('escapes props so they cannot close the embedded script element', function () {
+    Route::middleware('web')->get('/hostile', fn () => Bridge::render('Hostile', [
+        'name' => '</script><script>alert(1)</script><!--',
+    ]));
+
+    $response = $this->html('/hostile');
+
+    $response->assertOk()
+        ->assertDontSee('<script>alert(1)', false)
+        ->assertDontSee('<!--', false)
+        ->assertBridgePage('Hostile', fn ($page) => $page
+            ->where('name', '</script><script>alert(1)</script><!--'));
+
+    expect($response->getContent())->toContain('"name":"\u003C/script\u003E\u003Cscript\u003Ealert(1)');
+});
+
 it('serves the page object for bridge requests', function () {
     $response = $this->page('/customers?page=2');
 

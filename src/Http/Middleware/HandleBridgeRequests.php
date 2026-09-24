@@ -25,6 +25,12 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class HandleBridgeRequests
 {
+    /**
+     * What downstream code sees as Accept during a page visit, so Laravel's
+     * wantsJson()/expectsJson() take their browser branch (PLAN §5.4).
+     */
+    public const BROWSER_ACCEPT = 'text/html, application/xhtml+xml';
+
     public function __construct(
         private readonly ContentNegotiator $negotiator,
         private readonly Bridge $bridge,
@@ -51,7 +57,9 @@ final class HandleBridgeRequests
             return PageRepresenter::externalRedirect($request->fullUrl());
         }
 
-        $response = $next($request);
+        $response = $negotiation->mode === Mode::Page
+            ? $this->asBrowserVisit($request, $next)
+            : $next($request);
 
         if ($negotiation->mode === Mode::Page && $response instanceof RedirectResponse) {
             $response = $this->convertRedirect($response, $request);
@@ -73,6 +81,36 @@ final class HandleBridgeRequests
         }
 
         return $response;
+    }
+
+    /**
+     * A page visit is a browser navigation: code that branches on
+     * wantsJson()/expectsJson() (Fortify, `verified`, `password.confirm`)
+     * must redirect, not answer as an API. Bridge itself reads the stored
+     * negotiation, never the header. The original value stays in a request
+     * attribute and is restored for code that runs after the response.
+     */
+    private function asBrowserVisit(Request $request, Closure $next): Response
+    {
+        $original = $request->headers->get('Accept');
+        $request->attributes->set(Negotiation::ORIGINAL_ACCEPT_ATTRIBUTE, $original);
+
+        $this->setAccept($request, self::BROWSER_ACCEPT);
+
+        try {
+            return $next($request);
+        } finally {
+            $this->setAccept($request, $original);
+        }
+    }
+
+    private function setAccept(Request $request, ?string $accept): void
+    {
+        $request->headers->set('Accept', $accept);
+        $request->server->set('HTTP_ACCEPT', $accept);
+
+        // Symfony caches the parsed header on first use, possibly by an earlier middleware.
+        (fn () => $this->acceptableContentTypes = null)->call($request);
     }
 
     private function buildIsStale(Request $request): bool

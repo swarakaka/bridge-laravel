@@ -13,6 +13,12 @@ final class Negotiation
 {
     public const REQUEST_ATTRIBUTE = 'bridge.negotiation';
 
+    /**
+     * The client's Accept header for page-mode requests, which
+     * HandleBridgeRequests replaces with a browser Accept (PLAN §5.4).
+     */
+    public const ORIGINAL_ACCEPT_ATTRIBUTE = 'bridge.original_accept';
+
     public function __construct(
         public readonly Mode $mode,
         public readonly int $protocolVersion,

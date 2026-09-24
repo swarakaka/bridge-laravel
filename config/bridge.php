@@ -131,6 +131,8 @@ return [
                 'connection' => env('BRIDGE_STREAM_DB_CONNECTION'),
                 'table' => 'bridge_stream_events',
                 'poll_ms' => (int) env('BRIDGE_STREAM_POLL_MS', 1000),
+                // Ids re-checked behind the cursor for rows committed out of order.
+                'lookback' => 200,
                 'retain_minutes' => 60,
             ],
         ],

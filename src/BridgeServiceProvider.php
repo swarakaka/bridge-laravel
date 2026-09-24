@@ -38,6 +38,7 @@ use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Contracts\Session\Session;
+use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Router;
@@ -132,6 +133,8 @@ final class BridgeServiceProvider extends ServiceProvider
         $this->registerBladeDirectives();
         $this->registerRequestMacros();
         $this->registerDefaultSharedProps();
+        $this->app->booted(fn (Application $app) => $app->make(Bridge::class)->freezeBootShared());
+        $this->app->make(Dispatcher::class)->listen(RequestHandled::class, fn () => $this->app->make(Bridge::class)->resetRequestShared());
 
         $this->app->make(Dispatcher::class)->listen('*', PublishStreamableEvents::class);
 

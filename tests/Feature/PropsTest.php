@@ -94,13 +94,27 @@ it('resolves deferred props inline in JSON mode and excludes lazy ones', functio
 it('merges shared props with page props winning', function () {
     Bridge::share('auth', fn () => ['user' => ['id' => 1]]);
     Bridge::share(['plain' => 'shared', 'extra' => 'shared extra']);
+    expect(Bridge::shared('extra'))->toBe('shared extra');
 
     $this->page('/dashboard')->assertBridgePage('Dashboard', fn ($page) => $page
         ->where('auth.user.id', 1)
         ->where('plain', 'value')
         ->where('extra', 'shared extra'));
+});
 
-    expect(Bridge::shared('extra'))->toBe('shared extra');
+it('drops props shared during a request once it is handled', function () {
+    Route::middleware('web')->get('/signed-in', function () {
+        Bridge::share('auth', ['user' => ['id' => 7]]);
+
+        return Bridge::render('Dashboard');
+    });
+    Route::middleware('web')->get('/guest', fn () => Bridge::render('Dashboard'));
+
+    $this->page('/signed-in')->assertBridgePage('Dashboard', fn ($page) => $page->where('auth.user.id', 7));
+    $this->page('/guest')->assertBridgePage('Dashboard', fn ($page) => $page
+        ->missing('auth')
+        ->where('errors', [])
+        ->where('flash', null));
 });
 
 it('exposes default errors and flash shared props', function () {
@@ -118,5 +132,7 @@ it('renders empty props as an object', function () {
     Route::middleware('web')->get('/empty', fn () => Bridge::render('Empty'));
 
     expect($this->page('/empty')->getContent())->toContain('"props":{}');
+
+    Bridge::flushShared();
     expect($this->json_mode('GET', '/empty')->getContent())->toBe('{"data":{}}');
 });

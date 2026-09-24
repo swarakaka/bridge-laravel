@@ -62,3 +62,21 @@ it('authorizes channels with broadcast-style patterns', function () {
         ->and($authorizer->authorize(null, 'unknown'))->toBeFalse()
         ->and($authorizer->authorize(['tenant' => 7], 'tenant.7.extra'))->toBeFalse();
 });
+
+it('never moves positions backwards and remembers recent ids from its floor', function () {
+    $cursor = Cursor::fromLastEventId('5')->advance('a', '9')->advance('a', '7');
+
+    expect($cursor->for('a'))->toBe('9')
+        ->and($cursor->floor)->toBe('5')
+        ->and($cursor->recent)->toBe(['9', '7'])
+        ->and($cursor->isBehind('8'))->toBeTrue()
+        ->and($cursor->isBehind('10'))->toBeFalse()
+        ->and(Cursor::start()->isBehind('1'))->toBeFalse();
+
+    for ($i = 10; $i < 10 + Cursor::RECENT_LIMIT; $i++) {
+        $cursor = $cursor->advance('a', (string) $i);
+    }
+
+    expect($cursor->recent)->toHaveCount(Cursor::RECENT_LIMIT)
+        ->and($cursor->recent[0])->toBe('10');
+});

@@ -11,6 +11,7 @@ use Bridge\Props\Serializer;
 use Bridge\Stream\Bus\Cursor;
 use Bridge\Stream\Bus\Envelope;
 use Bridge\Stream\Contracts\EventBus;
+use Bridge\Stream\Contracts\ReplayWindow;
 use Bridge\Support\Headers;
 use Closure;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -225,7 +226,8 @@ final class StreamResponse implements Responsable
 
         $channels = array_values(array_unique($channels));
         $lastEventId = $request->headers->get(Headers::LAST_EVENT_ID);
-        $replay = $lastEventId !== null && $lastEventId !== '' && $this->bus->supportsReplay();
+        $replay = $lastEventId !== null && $lastEventId !== '' && $this->bus->supportsReplay()
+            && (! $this->bus instanceof ReplayWindow || $this->bus->canReplayFrom($channels, $lastEventId));
         $live = $this->bus->latestCursor($channels);
         $cursor = $replay ? Cursor::fromLastEventId((string) $lastEventId) : $live;
 
@@ -250,6 +252,9 @@ final class StreamResponse implements Responsable
             $envelopes = $this->bus->read($channels, $cursor, $block);
 
             foreach ($envelopes as $envelope) {
+                // A row that became visible after later ones goes out without an id,
+                // so the client's Last-Event-ID never moves backwards (spec/stream.md §5).
+                $late = $cursor->isBehind((string) $envelope->id);
                 $cursor = $cursor->advance((string) $envelope->channel, (string) $envelope->id);
 
                 if (isset($seen[$envelope->uuid])) {
@@ -277,7 +282,7 @@ final class StreamResponse implements Responsable
                     return;
                 }
 
-                $writer->event($envelope->event, $envelope->data, (string) $envelope->id);
+                $writer->event($envelope->event, $envelope->data, $late ? null : (string) $envelope->id);
             }
 
             if ($writer->aborted()) {

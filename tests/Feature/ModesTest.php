@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Bridge\Facades\Bridge;
 use Bridge\Support\Headers;
 use Bridge\Tests\Fixtures\Http\CustomerResource;
+use Illuminate\Auth\GenericUser;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Route;
 
@@ -107,6 +108,15 @@ it('renders a static shell when embedding is disabled', function () {
     $this->html('/customers')
         ->assertHtmlShell(embedded: false)
         ->assertHeader('Cache-Control', 'max-age=300, must-revalidate, public');
+});
+
+it('keeps a static shell private for an authenticated user', function () {
+    config()->set('bridge.shell.embed', false);
+    $this->actingAs(new GenericUser(['id' => 1]));
+
+    $this->html('/customers')
+        ->assertHtmlShell(embedded: false)
+        ->assertHeader('Cache-Control', 'max-age=300, must-revalidate, private');
 });
 
 it('supports per-response embed and shell overrides', function () {

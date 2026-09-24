@@ -70,13 +70,23 @@ final class PageRepresenter implements Representer
 
     public static function isSameOrigin(string $url, Request $request): bool
     {
-        if (str_starts_with($url, '/') && ! str_starts_with($url, '//')) {
-            return true;
+        // Browsers (WHATWG URL) read "\" as "/" and drop tabs and newlines, so "/\evil.com"
+        // and "/\t/evil.com" are protocol-relative. Anything ambiguous counts as external.
+        if (str_contains($url, '\\') || preg_match('/[\x00-\x20\x7F]/', $url) === 1) {
+            return false;
+        }
+
+        if (str_starts_with($url, '/')) {
+            return ! str_starts_with($url, '//');
         }
 
         $parts = parse_url($url);
 
-        if ($parts === false || ! isset($parts['host'])) {
+        if ($parts === false) {
+            return false;
+        }
+
+        if (! isset($parts['host'])) {
             return ! isset($parts['scheme']);
         }
 

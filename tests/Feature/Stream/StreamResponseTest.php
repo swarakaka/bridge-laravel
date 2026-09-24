@@ -9,6 +9,7 @@ use Bridge\Stream\Bus\Envelope;
 use Bridge\Stream\Bus\SyncBus;
 use Bridge\Stream\ConnectionLimiter;
 use Bridge\Stream\Contracts\EventBus;
+use Bridge\Stream\Contracts\ReplayWindow;
 use Bridge\Stream\Contracts\ShouldStream;
 use Bridge\Stream\StreamMessage;
 use Bridge\Stream\StreamWriter;
@@ -106,6 +107,38 @@ it('delivers bus events with ids and skips events from before the connection', f
 
     $fresh = sseFrames(streamBody(stream($this)));
     expect(array_filter($fresh, fn ($f) => ($f['data']['type'] ?? null) === 'notification'))->toBeEmpty();
+});
+
+it('answers replayed false when the bus lost events after Last-Event-ID', function () {
+    $this->app->instance(EventBus::class, new class extends BusDouble
+    {
+        public function canReplayFrom(array $channels, string $lastEventId): bool
+        {
+            return false;
+        }
+    });
+
+    $frames = sseFrames(streamBody(stream($this, '/events', ['Last-Event-ID' => '41'])));
+
+    expect($frames[1]['data']['type'])->toBe('ready')
+        ->and($frames[1]['data']['replayed'])->toBeFalse();
+});
+
+it('sends an event that arrives behind the cursor without an id', function () {
+    $this->app->instance(EventBus::class, new BusDouble([
+        Envelope::make('bridge', ['type' => 'invalidate', 'keys' => ['a']])->withDelivery('12', 'customers'),
+        Envelope::make('bridge', ['type' => 'invalidate', 'keys' => ['b']])->withDelivery('11', 'customers'),
+    ]));
+
+    $events = array_values(array_filter(
+        sseFrames(streamBody(stream($this))),
+        fn ($f) => ($f['data']['type'] ?? null) === 'invalidate',
+    ));
+
+    expect($events)->toHaveCount(2)
+        ->and($events[0]['id'])->toBe('12')
+        ->and($events[1])->not->toHaveKey('id')
+        ->and($events[1]['data']['keys'])->toBe(['b']);
 });
 
 it('publishes application events, props and invalidations through the facade', function () {
@@ -305,3 +338,39 @@ it('runs the doctor and prune commands', function () {
     $this->artisan('migrate')->run();
     $this->artisan('bridge:stream:prune')->assertSuccessful();
 });
+
+/**
+ * A replaying bus that hands out a fixed batch once.
+ */
+class BusDouble implements EventBus, ReplayWindow
+{
+    /** @param list<Envelope> $batch */
+    public function __construct(private array $batch = []) {}
+
+    public function publish(array $channels, Envelope $envelope): string
+    {
+        return '0';
+    }
+
+    public function read(array $channels, Cursor $since, int $blockMs): iterable
+    {
+        [$batch, $this->batch] = [$this->batch, []];
+
+        return $batch;
+    }
+
+    public function latestCursor(array $channels): Cursor
+    {
+        return new Cursor('10');
+    }
+
+    public function supportsReplay(): bool
+    {
+        return true;
+    }
+
+    public function canReplayFrom(array $channels, string $lastEventId): bool
+    {
+        return true;
+    }
+}

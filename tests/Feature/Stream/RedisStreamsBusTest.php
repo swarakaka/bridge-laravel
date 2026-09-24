@@ -49,3 +49,21 @@ it('publishes, reads live, replays by id and orders across channels', function (
         ->and($this->bus->supportsReplay())->toBeTrue()
         ->and(iterator_to_array($this->bus->read(['a', 'b'], Cursor::fromLastEventId($two), 100)))->toBe([]);
 });
+
+it('refuses replay once trimming dropped events after Last-Event-ID', function () {
+    $bus = new RedisStreamsBus(app('redis'), null, 5, $this->prefix);
+    $first = $bus->publish(['a'], Envelope::make('x', ['n' => 0]));
+
+    expect($bus->canReplayFrom(['a', 'never-used'], $first))->toBeTrue()
+        ->and($bus->canReplayFrom(['a'], '42'))->toBeFalse()
+        ->and($bus->canReplayFrom(['a'], (string) (time() + 3600).'000-0'))->toBeFalse();
+
+    // Exact trimming, so the drop is certain regardless of node sizes.
+    for ($n = 1; $n <= 20; $n++) {
+        $last = $bus->publish(['a'], Envelope::make('x', ['n' => $n]));
+    }
+    Redis::connection()->executeRaw(['XTRIM', $this->prefix.':stream:a', 'MAXLEN', '5']);
+
+    expect($bus->canReplayFrom(['a'], $first))->toBeFalse()
+        ->and($bus->canReplayFrom(['a'], $last))->toBeTrue();
+});

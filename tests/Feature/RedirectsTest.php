@@ -6,6 +6,7 @@ use Bridge\Facades\Bridge;
 use Bridge\Support\Headers;
 use Bridge\Tests\Fixtures\Http\CustomerResource;
 use Illuminate\Support\Facades\Route;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 
 beforeEach(function () {
     config()->set('bridge.shell.view', 'shell');
@@ -56,6 +57,20 @@ it('represents external redirects as 409 with X-Bridge-Location', function (stri
         ->assertStatus(409)
         ->assertHeader(Headers::LOCATION);
 })->with(['/external', '/bridge-external']);
+
+it('treats urls that browsers resolve to another host as external', function (string $target) {
+    Route::middleware('web')->post('/tricky', fn () => new RedirectResponse($target));
+
+    $this->withHeaders(['Accept' => $this::PAGE_ACCEPT])->post('/tricky')
+        ->assertStatus(409)
+        ->assertHeader(Headers::LOCATION, $target);
+})->with(['/\\evil.com', '///evil.com', "/\t/evil.com", '\\\\evil.com', 'https:evil.com', '//evil.com']);
+
+it('keeps same-origin relative and absolute targets as 303', function (string $target) {
+    Route::middleware('web')->post('/local', fn () => new RedirectResponse($target));
+
+    $this->withHeaders(['Accept' => $this::PAGE_ACCEPT])->post('/local')->assertStatus(303);
+})->with(['/customers/1', '/customers?q=a%2Fb', 'http://localhost/customers/1']);
 
 it('returns null data when nothing is attached', function () {
     Route::middleware('web')->delete('/customers/{id}', fn () => Bridge::redirect()->to('/customers'));

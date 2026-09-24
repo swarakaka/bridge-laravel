@@ -37,6 +37,15 @@ class Bridge
     /** @var array<string, mixed> */
     private array $shared = [];
 
+    /**
+     * Shares registered while the application booted. Everything shared later
+     * (middleware, controllers) belongs to one request and is dropped after it,
+     * so long-lived workers (Octane) never leak one user's props to the next.
+     *
+     * @var array<string, mixed>|null
+     */
+    private ?array $bootShared = null;
+
     public function __construct(
         private readonly Container $container,
         private readonly Version $version,
@@ -149,6 +158,20 @@ class Bridge
     public function flushShared(): void
     {
         $this->shared = [];
+    }
+
+    /** @internal Called once the application has booted. */
+    public function freezeBootShared(): void
+    {
+        $this->bootShared = $this->shared;
+    }
+
+    /** @internal Called after every handled request. */
+    public function resetRequestShared(): void
+    {
+        if ($this->bootShared !== null) {
+            $this->shared = $this->bootShared;
+        }
     }
 
     public function setVersion(Closure|string|null $version): void

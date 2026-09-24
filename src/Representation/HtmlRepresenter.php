@@ -64,7 +64,8 @@ final class HtmlRepresenter implements Representer
         if ($options->cache !== null) {
             $options->cache->apply($response, $request);
         } elseif (! $embed) {
-            $response->headers->set('Cache-Control', 'public, max-age=300, must-revalidate');
+            // A static shell is CDN-safe for guests; CacheOptions keeps it private for signed-in users (spec/page.md §7).
+            (new CacheOptions(maxAge: 300, public: true))->apply($response, $request);
         } elseif ($request->user() !== null) {
             $response->headers->set('Cache-Control', 'private, no-store');
         } else {

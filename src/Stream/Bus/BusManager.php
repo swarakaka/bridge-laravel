@@ -39,6 +39,7 @@ final class BusManager extends Manager
             (string) ($options['table'] ?? 'bridge_stream_events'),
             (int) ($options['poll_ms'] ?? 1000),
             (string) $this->config->get('bridge.stream.prefix', 'bridge'),
+            (int) ($options['lookback'] ?? 200),
         );
     }
 

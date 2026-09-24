@@ -10,6 +10,7 @@ use Bridge\Stream\Bus\Envelope;
 use Bridge\Stream\Bus\RedisStreamsBus;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Config\Repository;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
@@ -51,7 +52,7 @@ final class DoctorCommand extends Command
             $this->check("publish/read roundtrip via [{$driver}] (id {$id})", count($received) === 1);
             $this->check('replay supported', $bus->supportsReplay(), $bus->supportsReplay() ? 'Last-Event-ID replay available' : 'No replay: clients resync on reconnect');
         } catch (Throwable $e) {
-            $this->check("bus [{$driver}] reachable", false, $e->getMessage());
+            $this->check("bus [{$driver}] reachable", false, $this->hint($driver, $config) ?? $e->getMessage());
         }
 
         if (is_string($url = $this->option('url')) && $url !== '') {
@@ -66,6 +67,25 @@ final class DoctorCommand extends Command
     }
 
     private int $failures = 0;
+
+    /** A missing table is the usual database-driver failure; say how to fix it. */
+    private function hint(string $driver, Repository $config): ?string
+    {
+        if ($driver !== 'database') {
+            return null;
+        }
+
+        $connection = $config->get('bridge.stream.drivers.database.connection');
+        $table = (string) $config->get('bridge.stream.drivers.database.table', 'bridge_stream_events');
+
+        try {
+            return DB::connection(is_string($connection) ? $connection : null)->getSchemaBuilder()->hasTable($table)
+                ? null
+                : "Table [{$table}] is missing: run `php artisan migrate`.";
+        } catch (Throwable) {
+            return null;
+        }
+    }
 
     private function probe(string $url, ?string $token): void
     {

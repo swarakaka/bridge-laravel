@@ -17,6 +17,14 @@ it('fails the doctor when the bus drops the roundtrip', function () {
         ->assertFailed();
 });
 
+it('tells the doctor user to migrate when the stream table is missing', function () {
+    config()->set('bridge.stream.driver', 'database');
+
+    $this->artisan('bridge:doctor')
+        ->expectsOutputToContain('Table [bridge_stream_events] is missing: run `php artisan migrate`.')
+        ->assertFailed();
+});
+
 it('probes a stream url with the doctor', function () {
     config()->set('bridge.stream.driver', 'sync');
     Http::fake([

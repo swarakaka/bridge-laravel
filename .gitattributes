@@ -1,0 +1,9 @@
+# Kept out of `composer require` downloads (Packagist serves git archives of the
+# split repository). The tests stay in the monorepo, where the conformance suite
+# can read ../protocol.
+/tests export-ignore
+/phpunit.xml export-ignore
+/phpstan.neon export-ignore
+/pint.json export-ignore
+/composer.lock export-ignore
+/.gitattributes export-ignore

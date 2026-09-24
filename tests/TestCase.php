@@ -34,19 +34,19 @@ abstract class TestCase extends Orchestra
         $app['config']->set('bridge.build.version', 'test-build');
     }
 
-    protected function page(string $uri, array $headers = []): TestResponse
+    public function page(string $uri, array $headers = []): TestResponse
     {
         return $this->withHeaders(['Accept' => self::PAGE_ACCEPT] + $headers)->get($uri);
     }
 
-    protected function json_mode(string $method, string $uri, array $data = [], array $headers = []): TestResponse
+    public function json_mode(string $method, string $uri, array $data = [], array $headers = []): TestResponse
     {
         $server = $this->transformHeadersToServerVars(['Accept' => 'application/json'] + $headers);
 
         return $this->call($method, $uri, $data, [], [], $server);
     }
 
-    protected function html(string $uri, array $headers = []): TestResponse
+    public function html(string $uri, array $headers = []): TestResponse
     {
         return $this->withHeaders(['Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'] + $headers)->get($uri);
     }

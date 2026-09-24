@@ -11,10 +11,10 @@
     ],
     "license": "MIT",
     "type": "library",
-    "homepage": "https://github.com/swarakaka/Bridge",
+    "homepage": "https://github.com/swarakaka/bridge",
     "support": {
-        "issues": "https://github.com/swarakaka/Bridge/issues",
-        "source": "https://github.com/swarakaka/Bridge"
+        "issues": "https://github.com/swarakaka/bridge/issues",
+        "source": "https://github.com/swarakaka/bridge"
     },
     "require": {
         "php": "^8.4",

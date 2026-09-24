@@ -74,6 +74,10 @@ class HandleBridgeRequests
             $response = $this->convertRedirect($response, $request);
         }
 
+        if (in_array($negotiation->mode, [Mode::Page, Mode::Html], true)) {
+            $this->bridge->carryClearHistory($request, $response);
+        }
+
         if (in_array($negotiation->mode, [Mode::Page, Mode::Json], true)) {
             $this->addVary($response, Headers::VARY);
         } elseif ($negotiation->mode === Mode::Html) {

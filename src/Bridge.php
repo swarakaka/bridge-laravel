@@ -37,6 +37,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static Always always(mixed $value)
  * @method static Merge merge(mixed $value)
  * @method static Mode mode(?Request $request = null)
+ * @method static void encryptHistory(bool $encrypt = true, ?Request $request = null)
+ * @method static void clearHistory(?Request $request = null)
  *
  * @see BridgeManager
  */

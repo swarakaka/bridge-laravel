@@ -74,6 +74,22 @@ return [
         'etag' => true,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | History
+    |--------------------------------------------------------------------------
+    | encrypt         : store every page encrypted in the client's history
+    |                   (spec/page.md §10). Per route: the
+    |                   `bridge.encrypt-history` middleware; per response:
+    |                   ->encryptHistory(); per request: Bridge::encryptHistory().
+    | clear_on_logout : call Bridge::clearHistory() on Laravel's Logout event,
+    |                   so back/forward cannot show pages encrypted before it.
+    */
+    'history' => [
+        'encrypt' => (bool) env('BRIDGE_HISTORY_ENCRYPT', false),
+        'clear_on_logout' => true,
+    ],
+
     'csrf' => [
         // Only affects Bridge\Http\Middleware\VerifyCsrfToken when you use it.
         'skip_for_bearer' => true,

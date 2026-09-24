@@ -22,12 +22,15 @@ use Bridge\Stream\Contracts\EventBus;
 use Bridge\Stream\Publisher;
 use Bridge\Stream\StreamResponse;
 use Bridge\Stream\StreamWriter;
+use Bridge\Support\Headers;
 use Bridge\Support\Version;
 use Closure;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
+use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * The service behind the `Bridge\Bridge` facade. Holds shared props, the
@@ -36,6 +39,15 @@ use Illuminate\Http\Request;
  */
 class BridgeManager
 {
+    /** Request attribute holding a per-request `encryptHistory` decision. */
+    public const ENCRYPT_HISTORY_ATTRIBUTE = 'bridge.history.encrypt';
+
+    /** Request attribute set by clearHistory(); `sent` once a page carried it. */
+    public const CLEAR_HISTORY_ATTRIBUTE = 'bridge.history.clear';
+
+    /** Session key carrying a clearHistory() request across a redirect. */
+    public const CLEAR_HISTORY_SESSION_KEY = 'bridge.clear_history';
+
     /** @var array<string, mixed> */
     private array $shared = [];
 
@@ -212,5 +224,72 @@ class BridgeManager
         $request ??= $this->container->make('request');
 
         return Negotiation::for($request)->mode;
+    }
+
+    /**
+     * Store the pages of this request encrypted in the client's history
+     * (spec/page.md §10). Overrides `bridge.history.encrypt` for the request.
+     */
+    public function encryptHistory(bool $encrypt = true, ?Request $request = null): void
+    {
+        $request ??= $this->container->make('request');
+        $request->attributes->set(self::ENCRYPT_HISTORY_ATTRIBUTE, $encrypt);
+    }
+
+    /**
+     * Ask the client to make the history entries it encrypted earlier
+     * unreadable. Carried to the next page when this response redirects.
+     */
+    public function clearHistory(?Request $request = null): void
+    {
+        $request ??= $this->container->make('request');
+        $request->attributes->set(self::CLEAR_HISTORY_ATTRIBUTE, true);
+    }
+
+    /**
+     * The history members of a page's `meta` for this request. A pending
+     * clear (from this request or carried in the session) is consumed.
+     *
+     * @return array{encryptHistory?: true, clearHistory?: true}
+     */
+    public function historyMeta(Request $request, ?bool $encrypt = null): array
+    {
+        $meta = [];
+
+        $encrypt ??= $request->attributes->get(self::ENCRYPT_HISTORY_ATTRIBUTE);
+        $encrypt ??= (bool) $this->container->make(Repository::class)->get('bridge.history.encrypt', false);
+
+        if ($encrypt === true) {
+            $meta['encryptHistory'] = true;
+        }
+
+        $clear = $request->attributes->get(self::CLEAR_HISTORY_ATTRIBUTE) === true;
+
+        if ($request->hasSession() && $request->session()->pull(self::CLEAR_HISTORY_SESSION_KEY) === true) {
+            $clear = true;
+        }
+
+        if ($clear) {
+            $request->attributes->set(self::CLEAR_HISTORY_ATTRIBUTE, 'sent');
+            $meta['clearHistory'] = true;
+        }
+
+        return $meta;
+    }
+
+    /**
+     * @internal A clear requested during a redirecting request reaches the
+     * client on the next page. Written after the controller ran, so a logout
+     * that invalidated the session does not drop it.
+     */
+    public function carryClearHistory(Request $request, Response $response): void
+    {
+        if ($request->attributes->get(self::CLEAR_HISTORY_ATTRIBUTE) !== true || ! $request->hasSession()) {
+            return;
+        }
+
+        if ($response->isRedirection() || ($response->getStatusCode() === 409 && $response->headers->has(Headers::LOCATION))) {
+            $request->session()->put(self::CLEAR_HISTORY_SESSION_KEY, true);
+        }
     }
 }

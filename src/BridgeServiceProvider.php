@@ -12,6 +12,7 @@ use Bridge\Console\SsrCommand;
 use Bridge\Errors\ErrorMapper;
 use Bridge\Errors\ExceptionRenderer;
 use Bridge\Http\Middleware\AuthenticateStreamTicket;
+use Bridge\Http\Middleware\EncryptHistory;
 use Bridge\Http\Middleware\HandleBridgeRequests;
 use Bridge\Negotiation\ContentNegotiator;
 use Bridge\Negotiation\Mode;
@@ -30,6 +31,7 @@ use Bridge\Stream\Contracts\ShouldStream;
 use Bridge\Stream\Listeners\PublishStreamableEvents;
 use Bridge\Support\Version;
 use Bridge\Testing\BridgeTestingMacros;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
@@ -142,6 +144,11 @@ final class BridgeServiceProvider extends ServiceProvider
         $this->app->make(Dispatcher::class)->listen(RequestHandled::class, fn () => $this->app->make(BridgeManager::class)->resetRequestShared());
 
         $this->app->make(Dispatcher::class)->listen(ShouldStream::class, PublishStreamableEvents::class);
+        $this->app->make(Dispatcher::class)->listen(Logout::class, function (): void {
+            if ((bool) $this->app->make(Repository::class)->get('bridge.history.clear_on_logout', true) && $this->app->bound('request')) {
+                $this->app->make(BridgeManager::class)->clearHistory();
+            }
+        });
 
         if ($this->app->runningInConsole()) {
             $this->commands([InstallCommand::class, MiddlewareCommand::class, DoctorCommand::class, PruneStreamEventsCommand::class, SsrCommand::class]);
@@ -157,6 +164,7 @@ final class BridgeServiceProvider extends ServiceProvider
         $router = $this->app->make(Router::class);
         $router->aliasMiddleware('bridge', HandleBridgeRequests::class);
         $router->aliasMiddleware('bridge.ticket', AuthenticateStreamTicket::class);
+        $router->aliasMiddleware('bridge.encrypt-history', EncryptHistory::class);
 
         $autoRegister = (bool) $this->app->make(Repository::class)->get('bridge.middleware.auto_register', true);
 

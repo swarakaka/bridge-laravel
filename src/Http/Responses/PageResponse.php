@@ -35,6 +35,8 @@ final class PageResponse implements Responsable
 
     private ?string $jsonRoot = null;
 
+    private ?bool $encryptHistory = null;
+
     public function __construct(
         private Page $page,
         private readonly BridgeManager $bridge,
@@ -111,6 +113,17 @@ final class PageResponse implements Responsable
         return $this;
     }
 
+    /**
+     * Store this page encrypted in the client's history (spec/page.md §10),
+     * whatever the request or `bridge.history.encrypt` say.
+     */
+    public function encryptHistory(bool $encrypt = true): self
+    {
+        $this->encryptHistory = $encrypt;
+
+        return $this;
+    }
+
     public function page(): Page
     {
         return $this->page;
@@ -144,6 +157,11 @@ final class PageResponse implements Responsable
 
         if ($resolved->merge !== []) {
             $meta['merge'] = $resolved->merge;
+        }
+
+        // History members only concern clients that keep pages in browser history.
+        if (in_array($negotiation->mode, [Mode::Page, Mode::Html], true)) {
+            $meta = array_merge($meta, $this->bridge->historyMeta($request, $this->encryptHistory));
         }
 
         return new PageDocument(

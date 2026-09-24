@@ -6,6 +6,7 @@ use Bridge\Bridge;
 use Bridge\Support\Headers;
 use Bridge\Tests\Fixtures\Http\CustomerResource;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -107,6 +108,32 @@ it('produces the minimal page fixture', function () {
 
     validateAgainst('page', (string) $response->getContent());
     expect($response->json())->toEqual($expected);
+});
+
+it('produces the history fixtures', function () {
+    config()->set('bridge.history.encrypt', true);
+
+    $encrypted = $this->page('/customers/21')->assertOk();
+    validateAgainst('page', (string) $encrypted->getContent());
+    expect($encrypted->json())->toEqual(protocolFixture('page/encrypt-history.json'));
+
+    config()->set('bridge.history.encrypt', false);
+    Route::middleware('web')->get('/login', fn () => Bridge::render('Auth/Login'));
+    Route::middleware('web')->post('/logout', function (Request $request) {
+        Bridge::clearHistory();
+        $request->session()->invalidate();
+
+        return Bridge::redirect()->to('/login');
+    });
+
+    $this->withoutMiddleware(ValidateCsrfToken::class)
+        ->withHeaders(['Accept' => $this::PAGE_ACCEPT])->post('/logout')->assertStatus(303);
+
+    // The handled request restored the boot-time shares; the fixture has none.
+    Bridge::flushShared();
+    $cleared = $this->page('/login')->assertOk();
+    validateAgainst('page', (string) $cleared->getContent());
+    expect($cleared->json())->toEqual(protocolFixture('page/clear-history.json'));
 });
 
 it('embeds the same page object in the HTML shell', function () {

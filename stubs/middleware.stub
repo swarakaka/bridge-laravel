@@ -1,0 +1,21 @@
+<?php
+
+namespace {{ namespace }};
+
+use Bridge\Http\Middleware\HandleBridgeRequests as Middleware;
+use Illuminate\Http\Request;
+
+class {{ class }} extends Middleware
+{
+    /**
+     * Props shared with every page of this request.
+     *
+     * @return array<string, mixed>
+     */
+    public function share(Request $request): array
+    {
+        return [
+            //
+        ];
+    }
+}

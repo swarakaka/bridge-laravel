@@ -6,6 +6,7 @@ namespace Bridge;
 
 use Bridge\Console\DoctorCommand;
 use Bridge\Console\InstallCommand;
+use Bridge\Console\MiddlewareCommand;
 use Bridge\Console\PruneStreamEventsCommand;
 use Bridge\Console\SsrCommand;
 use Bridge\Errors\ErrorMapper;
@@ -143,7 +144,7 @@ final class BridgeServiceProvider extends ServiceProvider
         $this->app->make(Dispatcher::class)->listen(ShouldStream::class, PublishStreamableEvents::class);
 
         if ($this->app->runningInConsole()) {
-            $this->commands([InstallCommand::class, DoctorCommand::class, PruneStreamEventsCommand::class, SsrCommand::class]);
+            $this->commands([InstallCommand::class, MiddlewareCommand::class, DoctorCommand::class, PruneStreamEventsCommand::class, SsrCommand::class]);
         }
 
         if (class_exists(TestResponse::class)) {
@@ -170,10 +171,29 @@ final class BridgeServiceProvider extends ServiceProvider
                 $kernel->addToMiddlewarePriorityBefore($before, AuthenticateStreamTicket::class);
             }
 
-            if ($autoRegister && method_exists($kernel, 'appendMiddlewareToGroup')) {
+            if ($autoRegister && method_exists($kernel, 'appendMiddlewareToGroup') && ! $this->webGroupHasBridgeMiddleware($kernel)) {
                 $kernel->appendMiddlewareToGroup('web', HandleBridgeRequests::class);
             }
         });
+    }
+
+    /**
+     * An application subclass (`bridge:middleware`) registered in the `web`
+     * group replaces the package middleware; running both would negotiate twice.
+     */
+    private function webGroupHasBridgeMiddleware(HttpKernel $kernel): bool
+    {
+        if (! method_exists($kernel, 'getMiddlewareGroups')) {
+            return false;
+        }
+
+        foreach ($kernel->getMiddlewareGroups()['web'] ?? [] as $middleware) {
+            if (is_a($middleware, HandleBridgeRequests::class, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

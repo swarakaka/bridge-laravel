@@ -20,7 +20,7 @@ final class InstallCommand extends Command
         $this->components->info('Bridge installed.');
         $this->components->bulletList([
             'config/bridge.php published; set shell.view to "app" to use the published resources/views/app.blade.php.',
-            'The `bridge` middleware is added to the `web` group automatically (bridge.middleware.auto_register).',
+            'The `bridge` middleware is added to the `web` group automatically (bridge.middleware.auto_register); run bridge:middleware for your own subclass.',
             'Return Bridge::render(\'Component\', [...]) from controllers; content negotiation picks HTML, page or JSON.',
             'For bearer-token clients on web routes, swap VerifyCsrfToken for Bridge\Http\Middleware\VerifyCsrfToken.',
         ]);

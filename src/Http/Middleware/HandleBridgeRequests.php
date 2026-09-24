@@ -22,8 +22,11 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Negotiates once per request, enforces build conflicts (409), converts
  * redirects for page mode, and adds ETag / 304 handling (PLAN §9.3).
+ *
+ * Applications may extend it (`php artisan bridge:middleware`) to share
+ * props per request; auto-registration then steps aside.
  */
-final class HandleBridgeRequests
+class HandleBridgeRequests
 {
     /**
      * What downstream code sees as Accept during a page visit, so Laravel's
@@ -53,6 +56,12 @@ final class HandleBridgeRequests
 
         $request->attributes->set(Negotiation::REQUEST_ATTRIBUTE, $negotiation);
 
+        $shared = $this->share($request);
+
+        if ($shared !== []) {
+            $this->bridge->share($shared);
+        }
+
         if ($negotiation->mode === Mode::Page && $request->isMethod('GET') && $this->buildIsStale($request)) {
             return PageRepresenter::externalRedirect($request->fullUrl());
         }
@@ -81,6 +90,18 @@ final class HandleBridgeRequests
         }
 
         return $response;
+    }
+
+    /**
+     * Props shared with this request, for subclasses. Values may be closures,
+     * resolved only when a response includes them. Like any share made after
+     * boot, they are dropped once the request is handled.
+     *
+     * @return array<string, mixed>
+     */
+    public function share(Request $request): array
+    {
+        return [];
     }
 
     /**

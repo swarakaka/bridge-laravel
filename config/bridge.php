@@ -97,7 +97,8 @@ return [
     ],
 
     'middleware' => [
-        // Push HandleBridgeRequests onto the `web` group automatically.
+        // Push HandleBridgeRequests onto the `web` group automatically. Skipped
+        // when the group already has a subclass (php artisan bridge:middleware).
         'auto_register' => true,
     ],
 

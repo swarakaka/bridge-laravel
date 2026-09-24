@@ -136,6 +136,19 @@ it('produces the history fixtures', function () {
     expect($cleared->json())->toEqual(protocolFixture('page/clear-history.json'));
 });
 
+it('produces the deferred-once fixture for a client that holds the value', function () {
+    Route::middleware('web')->get('/dashboard', fn () => Bridge::render('Dashboard', [
+        'recentCustomers' => [['id' => 22, 'name' => 'Globex']],
+        'stats' => Bridge::defer(fn () => ['x' => 1]),
+        'signups' => Bridge::defer(fn () => [], 'charts')->once(),
+    ]));
+
+    $response = $this->page('/dashboard', [Headers::ONCE => 'signups'])->assertOk();
+
+    validateAgainst('page', (string) $response->getContent());
+    expect($response->json())->toEqual(protocolFixture('page/deferred-once-held.json'));
+});
+
 it('produces the merge-modes fixture', function () {
     Route::middleware('web')->get('/feed', fn () => Bridge::render('Feed', [
         'customers' => Bridge::merge(['data' => [['id' => 22, 'name' => 'Globex']], 'meta' => ['current_page' => 2]])->matchOn('data.id'),

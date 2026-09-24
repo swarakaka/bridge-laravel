@@ -125,6 +125,6 @@ it('refuses keys with commas or whitespace and nested hints', function () {
 
 it('keeps fresh() from changing the original hint', function () {
     $hint = new Once(fn () => 1);
-    expect($hint->fresh()->fresh)->toBeTrue()
-        ->and($hint->fresh)->toBeFalse();
+    expect($hint->fresh()->onceOptions()?->fresh)->toBeTrue()
+        ->and($hint->onceOptions()?->fresh)->toBeFalse();
 });

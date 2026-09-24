@@ -38,7 +38,7 @@ final class PropResolver
         $matchOn = [];
         $once = [];
         // Held once keys matter only to page clients; HTML shells always carry the values.
-        $held = $mode === Mode::Page ? $this->heldOnceKeys($request) : [];
+        $heldKeys = $mode === Mode::Page ? $this->heldOnceKeys($request) : [];
 
         foreach ($props as $key => $value) {
             $key = (string) $key;
@@ -53,48 +53,61 @@ final class PropResolver
                 continue;
             }
 
-            if ($value instanceof Lazy) {
-                if (! $selection->isPartial() || $selection->only === []) {
-                    continue;
-                }
+            // Delivery, then once, then merge (PLAN §13.3).
+            $options = $value instanceof PropHint ? $value->onceOptions() : null;
+            $onceEntry = null;
+            $held = false;
 
-                $value = $this->unwrap($key, $value);
-            } elseif ($value instanceof Once) {
-                $onceKey = $value->keyFor($key);
-
-                if ($mode !== Mode::Json) {
-                    $once[$key] = ['key' => $onceKey, 'expiresAt' => $value->expiresAt()];
-                }
-
+            if ($options !== null && $mode !== Mode::Json) {
+                $onceEntry = ['key' => $options->keyFor($key), 'expiresAt' => $options->expiresAt()];
                 // Named in X-Bridge-Only: an explicit reload is a refresh.
                 $named = in_array($key, $selection->onlyTopLevel(), true);
+                $held = isset($heldKeys[$onceEntry['key']]) && ! $options->fresh && ! $named;
+            }
 
-                if (isset($held[$onceKey]) && ! $value->fresh && ! $named) {
-                    continue;
+            if ($value instanceof Lazy && (! $selection->isPartial() || $selection->only === [])) {
+                // Absent unless named; a held lazy-once value is still filled in by the client.
+                if ($held && $onceEntry !== null) {
+                    $once[$key] = $onceEntry;
                 }
 
-                $value = $this->unwrap($key, $value);
-            } elseif ($value instanceof Merge) {
-                match ($value->mode) {
-                    Merge::PREPEND => $prepend[] = $key,
-                    Merge::DEEP => $deepMerge[] = $key,
+                continue;
+            }
+
+            if ($value instanceof Deferred && ! ($selection->isPartial() || ($mode === Mode::Json && $this->resolveDeferredInJson))) {
+                // A held deferred-once value is neither sent nor deferred: the client fills it in.
+                if ($held && $onceEntry !== null) {
+                    $once[$key] = $onceEntry;
+                } else {
+                    $deferred[$value->group][] = $key;
+                }
+
+                continue;
+            }
+
+            if ($onceEntry !== null) {
+                $once[$key] = $onceEntry;
+
+                if ($held) {
+                    continue;
+                }
+            }
+
+            $mergeOptions = $value instanceof PropHint ? $value->mergeOptions() : null;
+
+            if ($mergeOptions !== null) {
+                match ($mergeOptions->mode) {
+                    MergeOptions::PREPEND => $prepend[] = $key,
+                    MergeOptions::DEEP => $deepMerge[] = $key,
                     default => $merge[] = $key,
                 };
 
-                if ($value->matchOn !== []) {
-                    $matchOn[$key] = $value->matchOn;
+                if ($mergeOptions->matchOn !== []) {
+                    $matchOn[$key] = $mergeOptions->matchOn;
                 }
+            }
 
-                $value = $this->unwrap($key, $value);
-            } elseif ($value instanceof Deferred) {
-                $inlineDeferred = $selection->isPartial() || ($mode === Mode::Json && $this->resolveDeferredInJson);
-
-                if (! $inlineDeferred) {
-                    $deferred[$value->group][] = $key;
-
-                    continue;
-                }
-
+            if ($value instanceof PropHint) {
                 $value = $this->unwrap($key, $value);
             }
 

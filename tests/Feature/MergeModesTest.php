@@ -42,13 +42,13 @@ it('returns copies from the modifiers', function () {
     $append = Bridge::merge([1]);
     $prepend = $append->prepend()->matchOn('id');
 
-    expect($append->mode)->toBe(Merge::APPEND)
-        ->and($append->matchOn)->toBe([])
-        ->and($prepend->mode)->toBe(Merge::PREPEND)
-        ->and($prepend->matchOn)->toBe(['id'])
-        ->and($prepend->append()->mode)->toBe(Merge::APPEND)
-        ->and($prepend->deep()->matchOn)->toBe(['id'])
-        ->and($prepend->matchOn()->matchOn)->toBe([]);
+    expect($append->mergeOptions()?->mode)->toBe(Merge::APPEND)
+        ->and($append->mergeOptions()?->matchOn)->toBe([])
+        ->and($prepend->mergeOptions()?->mode)->toBe(Merge::PREPEND)
+        ->and($prepend->mergeOptions()?->matchOn)->toBe(['id'])
+        ->and($prepend->append()->mergeOptions()?->mode)->toBe(Merge::APPEND)
+        ->and($prepend->deep()->mergeOptions()?->matchOn)->toBe(['id'])
+        ->and($prepend->matchOn()->mergeOptions()?->matchOn)->toBe([]);
 });
 
 it('refuses bad match paths and wrapped hints', function () {

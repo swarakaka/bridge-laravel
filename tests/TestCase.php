@@ -36,7 +36,8 @@ abstract class TestCase extends Orchestra
 
     public function page(string $uri, array $headers = []): TestResponse
     {
-        return $this->withHeaders(['Accept' => self::PAGE_ACCEPT] + $headers)->get($uri);
+        // Headers set by an earlier call in the same test must not leak into this request.
+        return $this->flushHeaders()->withHeaders(['Accept' => self::PAGE_ACCEPT] + $headers)->get($uri);
     }
 
     public function json_mode(string $method, string $uri, array $data = [], array $headers = []): TestResponse
@@ -48,6 +49,6 @@ abstract class TestCase extends Orchestra
 
     public function html(string $uri, array $headers = []): TestResponse
     {
-        return $this->withHeaders(['Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'] + $headers)->get($uri);
+        return $this->flushHeaders()->withHeaders(['Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'] + $headers)->get($uri);
     }
 }

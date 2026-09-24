@@ -44,7 +44,7 @@
                 "Bridge\\BridgeServiceProvider"
             ],
             "aliases": {
-                "Bridge": "Bridge\\Facades\\Bridge"
+                "Bridge": "Bridge\\Bridge"
             }
         }
     },

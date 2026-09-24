@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Bridge\Facades\Bridge;
+use Bridge\Bridge;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;

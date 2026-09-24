@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Bridge\Http\Middleware;
 
-use Bridge\Bridge;
+use Bridge\BridgeManager;
 use Bridge\Negotiation\ContentNegotiator;
 use Bridge\Negotiation\Mode;
 use Bridge\Negotiation\Negotiation;
@@ -33,7 +33,7 @@ final class HandleBridgeRequests
 
     public function __construct(
         private readonly ContentNegotiator $negotiator,
-        private readonly Bridge $bridge,
+        private readonly BridgeManager $bridge,
         private readonly Repository $config,
     ) {}
 

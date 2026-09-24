@@ -2,7 +2,8 @@
 
 declare(strict_types=1);
 
-use Bridge\Facades\Bridge;
+use Bridge\Bridge;
+use Bridge\BridgeManager;
 use Bridge\Stream\Bus\BusManager;
 use Bridge\Stream\Bus\Cursor;
 use Bridge\Stream\Bus\Envelope;
@@ -340,7 +341,7 @@ it('authenticates stream tickets from signed urls', function () {
     Route::middleware(['web', 'bridge.ticket'])->name('events')->get('/ticketed', fn () => Bridge::stream()->channels(fn ($user) => ['user.'.($user?->id ?? 'guest')])->maxDuration(0));
 
     $this->actingAs($user);
-    $url = $this->app->make(\Bridge\Bridge::class)->streamTicket('events', ['scope' => 'demo']);
+    $url = $this->app->make(BridgeManager::class)->streamTicket('events', ['scope' => 'demo']);
     expect($url)->toContain('bridge_user=42')->toContain('signature=');
 
     // A new request (no session) presents the ticket.
@@ -374,7 +375,7 @@ it('authenticates stream tickets on guards without onceUsingId', function () {
         ->get('/token-events', fn () => Bridge::stream()->channels(fn ($user) => ['user.'.$user->id])->maxDuration(0));
 
     $this->actingAs(User::query()->findOrFail(7));
-    $url = $this->app->make(\Bridge\Bridge::class)->streamTicket('token-events');
+    $url = $this->app->make(BridgeManager::class)->streamTicket('token-events');
     $this->app['auth']->forgetGuards();
     auth()->logout();
     Bridge::to('user.7')->notify('for 7');

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Bridge\Facades\Bridge;
+use Bridge\Bridge;
 use Bridge\Negotiation\Mode;
 use Bridge\Support\Headers;
 use Bridge\Tests\Fixtures\Http\CustomerResource;

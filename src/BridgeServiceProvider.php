@@ -70,7 +70,8 @@ final class BridgeServiceProvider extends ServiceProvider
             return $version;
         });
 
-        $this->app->singleton(Bridge::class, fn (Application $app): Bridge => new Bridge($app, $app->make(Version::class)));
+        $this->app->singleton(BridgeManager::class, fn (Application $app): BridgeManager => new BridgeManager($app, $app->make(Version::class)));
+        $this->app->alias(BridgeManager::class, 'bridge');
 
         $this->app->singleton(ContentNegotiator::class, function (Application $app): ContentNegotiator {
             $default = Mode::tryFrom((string) $app->make(Repository::class)->get('bridge.negotiation.default_mode', 'html')) ?? Mode::Html;
@@ -136,8 +137,8 @@ final class BridgeServiceProvider extends ServiceProvider
         $this->registerBladeDirectives();
         $this->registerRequestMacros();
         $this->registerDefaultSharedProps();
-        $this->app->booted(fn (Application $app) => $app->make(Bridge::class)->freezeBootShared());
-        $this->app->make(Dispatcher::class)->listen(RequestHandled::class, fn () => $this->app->make(Bridge::class)->resetRequestShared());
+        $this->app->booted(fn (Application $app) => $app->make(BridgeManager::class)->freezeBootShared());
+        $this->app->make(Dispatcher::class)->listen(RequestHandled::class, fn () => $this->app->make(BridgeManager::class)->resetRequestShared());
 
         $this->app->make(Dispatcher::class)->listen(ShouldStream::class, PublishStreamableEvents::class);
 
@@ -231,7 +232,7 @@ final class BridgeServiceProvider extends ServiceProvider
 
     private function registerDefaultSharedProps(): void
     {
-        $bridge = $this->app->make(Bridge::class);
+        $bridge = $this->app->make(BridgeManager::class);
         $flashKeys = $this->app->make(Repository::class)->get('bridge.flash.keys', ['message', 'level']);
         $flashKeys = is_array($flashKeys) ? array_values($flashKeys) : ['message', 'level'];
 

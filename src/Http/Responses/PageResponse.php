@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Bridge\Http\Responses;
 
-use Bridge\Bridge;
+use Bridge\BridgeManager;
 use Bridge\Negotiation\Mode;
 use Bridge\Negotiation\Negotiation;
 use Bridge\Negotiation\NotAcceptableException;
@@ -37,7 +37,7 @@ final class PageResponse implements Responsable
 
     public function __construct(
         private Page $page,
-        private readonly Bridge $bridge,
+        private readonly BridgeManager $bridge,
         private readonly PropResolver $resolver,
         private readonly RepresenterRegistry $representers,
     ) {}

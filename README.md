@@ -29,7 +29,7 @@ The shell marks where the client mounts, either with directives or with Blade co
 ## Usage
 
 ```php
-use Bridge\Facades\Bridge;
+use Bridge\Bridge;
 
 class CustomerController extends Controller
 {
@@ -55,6 +55,8 @@ class CustomerController extends Controller
     }
 }
 ```
+
+`Bridge\Bridge` is a facade over the `Bridge\BridgeManager` singleton (also bound as `bridge`). Type-hint `BridgeManager` for dependency injection. `Bridge\Facades\Bridge` still works but is deprecated since 2.0; see [UPGRADE.md](UPGRADE.md).
 
 | Request                                    | `index()` returns                                                                         | `store()` returns                                                         |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |

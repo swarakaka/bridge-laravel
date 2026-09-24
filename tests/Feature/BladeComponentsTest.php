@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Bridge\Facades\Bridge;
+use Bridge\Bridge;
 use Bridge\Ssr\SsrGateway;
 use Bridge\Ssr\SsrResult;
 use Illuminate\Support\Facades\Route;

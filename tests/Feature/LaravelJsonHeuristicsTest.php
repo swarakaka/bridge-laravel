@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Bridge\Facades\Bridge;
+use Bridge\Bridge;
 use Bridge\Negotiation\Negotiation;
 use Bridge\Tests\Fixtures\Http\LoginResponse;
 use Bridge\Tests\Fixtures\Http\ReadsAcceptEarly;

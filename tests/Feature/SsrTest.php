@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Bridge\Facades\Bridge;
+use Bridge\Bridge;
 use Bridge\Ssr\HttpSsrGateway;
 use Bridge\Ssr\NullSsrGateway;
 use Bridge\Ssr\SsrGateway;

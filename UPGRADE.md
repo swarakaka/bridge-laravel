@@ -4,7 +4,7 @@
 
 ### `Bridge\Bridge` is now the facade
 
-`use Bridge\Bridge;` followed by `Bridge::render(...)` used to fail with "Non-static method Bridge\Bridge::render() cannot be called statically", because `Bridge\Bridge` was the service class and the facade lived at `Bridge\Facades\Bridge`. The layout now follows Inertia's (`Inertia\Inertia` is the facade, `Inertia\ResponseFactory` the service):
+`use Bridge\Bridge;` followed by `Bridge::render(...)` used to fail with "Non-static method Bridge\Bridge::render() cannot be called statically", because `Bridge\Bridge` was the service class and the facade lived at `Bridge\Facades\Bridge`. The layout now puts the facade in front of a separately named service:
 
 | 1.x                                      | 2.0                                                               |
 | ---------------------------------------- | ----------------------------------------------------------------- |

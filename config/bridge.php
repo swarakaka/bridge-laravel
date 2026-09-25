@@ -158,4 +158,23 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Watched props (PLAN §20.6)
+    |--------------------------------------------------------------------------
+    | tags     : `table` names tags after the table (`customers.12`), `class`
+    |            after the morph class (the morph-map alias, or the class name
+    |            when there is none). A model's bridgeTag() overrides both.
+    | channels : channels of models with StreamsChanges and no streamOn().
+    |            Every subscriber of them receives the tags; multi-tenant apps
+    |            should define streamOn() instead.
+    | max_tags : record tags per model and channel in one message; beyond it
+    |            the message carries `<tag>.*`.
+    */
+    'watch' => [
+        'tags' => env('BRIDGE_WATCH_TAGS', 'table'),
+        'channels' => ['bridge.watch'],
+        'max_tags' => 50,
+    ],
+
 ];

@@ -22,6 +22,9 @@ final class Headers
     /** Once keys the client holds (spec/page.md §11). Page mode only. */
     public const ONCE = 'X-Bridge-Once';
 
+    /** `<token>.<seq>` of the sending client, echoed hashed on watch invalidations (spec/stream.md §3.2). */
+    public const CLIENT = 'X-Bridge-Client';
+
     public const LAST_EVENT_ID = 'Last-Event-ID';
 
     /** Query fallback for Last-Event-ID: a new native EventSource cannot send the header. */

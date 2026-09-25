@@ -165,6 +165,10 @@ final class PageResponse implements Responsable
             $meta['once'] = $resolved->once;
         }
 
+        if ($resolved->watch !== []) {
+            $meta['watch'] = $resolved->watch;
+        }
+
         // History members only concern clients that keep pages in browser history.
         if (in_array($negotiation->mode, [Mode::Page, Mode::Html], true)) {
             $meta = array_merge($meta, $this->bridge->historyMeta($request, $this->encryptHistory));

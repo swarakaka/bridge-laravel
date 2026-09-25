@@ -8,10 +8,12 @@ use Bridge\Stream\Bus\BusManager;
 use Bridge\Stream\Bus\DatabaseBus;
 use Bridge\Stream\Bus\Envelope;
 use Bridge\Stream\Bus\RedisStreamsBus;
+use Bridge\Stream\Concerns\StreamsChanges;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -55,6 +57,8 @@ final class DoctorCommand extends Command
             $this->check("bus [{$driver}] reachable", false, $this->hint($driver, $config) ?? $e->getMessage());
         }
 
+        $this->watchedModels($config);
+
         if (is_string($url = $this->option('url')) && $url !== '') {
             $this->components->info('HTTP probe');
             $this->probe($url, is_string($this->option('token')) ? $this->option('token') : null);
@@ -67,6 +71,69 @@ final class DoctorCommand extends Command
     }
 
     private int $failures = 0;
+
+    /**
+     * Models with StreamsChanges and no streamOn() publish on the default
+     * channels, which every subscriber receives (PLAN §20.6). Reported, not failed.
+     */
+    private function watchedModels(Repository $config): void
+    {
+        $defaults = [];
+
+        foreach ($this->modelClasses() as $class) {
+            if (in_array(StreamsChanges::class, class_uses_recursive($class), true) && ! method_exists($class, 'streamOn')) {
+                $defaults[] = $class;
+            }
+        }
+
+        if ($defaults === []) {
+            return;
+        }
+
+        $channels = $config->get('bridge.watch.channels', []);
+        $channels = is_array($channels) ? implode(', ', array_map('strval', $channels)) : '';
+
+        $this->components->info('Watched props');
+
+        foreach ($defaults as $class) {
+            $this->components->twoColumnDetail("{$class} <fg=gray>no streamOn(): changes go to every subscriber of [{$channels}]</>", '<fg=yellow>WARN</>');
+        }
+    }
+
+    /**
+     * Classes under app/Models.
+     *
+     * @return list<class-string>
+     */
+    private function modelClasses(): array
+    {
+        $directory = $this->laravel->path('Models');
+
+        if (! is_dir($directory)) {
+            return [];
+        }
+
+        $namespace = $this->laravel->getNamespace().'Models\\';
+        $classes = [];
+        $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS));
+
+        foreach ($files as $file) {
+            if (! $file instanceof \SplFileInfo || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $relative = Str::after($file->getPathname(), $directory.DIRECTORY_SEPARATOR);
+            $class = $namespace.str_replace(['/', '.php'], ['\\', ''], $relative);
+
+            if (class_exists($class)) {
+                $classes[] = $class;
+            }
+        }
+
+        sort($classes);
+
+        return $classes;
+    }
 
     /** A missing table is the usual database-driver failure; say how to fix it. */
     private function hint(string $driver, Repository $config): ?string

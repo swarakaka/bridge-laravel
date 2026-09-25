@@ -13,6 +13,7 @@ use Bridge\Props\Lazy;
 use Bridge\Props\Merge;
 use Bridge\Props\Once;
 use Bridge\Props\Scroll;
+use Bridge\Props\Watch;
 use Bridge\Stream\Publisher;
 use Bridge\Stream\StreamResponse;
 use Closure;
@@ -41,6 +42,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static Merge deepMerge(mixed $value)
  * @method static Scroll scroll(mixed $value, ?string $pageName = null)
  * @method static Once once(mixed $value, ?string $key = null, \DateInterval|int|null $ttl = null)
+ * @method static Watch watch(mixed $value, \Illuminate\Database\Eloquent\Model|string ...$sources)
  * @method static Mode mode(?Request $request = null)
  * @method static void encryptHistory(bool $encrypt = true, ?Request $request = null)
  * @method static void clearHistory(?Request $request = null)

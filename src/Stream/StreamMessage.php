@@ -29,10 +29,22 @@ final class StreamMessage
 
     /**
      * @param  list<string>|string  $keys  prop keys or "*"
+     * @param  list<string>  $tags  watch tags of data that changed (spec/stream.md §3.1)
+     * @param  string|null  $client  `<hash>.<seq>` of the request that made the change (§3.2)
      */
-    public static function invalidate(array|string $keys): self
+    public static function invalidate(array|string $keys, array $tags = [], ?string $client = null): self
     {
-        return self::control(['type' => 'invalidate', 'keys' => $keys === '*' ? '*' : (is_array($keys) ? $keys : [$keys])]);
+        $data = ['type' => 'invalidate', 'keys' => $keys === '*' ? '*' : (is_array($keys) ? $keys : [$keys])];
+
+        if ($tags !== []) {
+            $data['tags'] = $tags;
+        }
+
+        if ($client !== null) {
+            $data['client'] = $client;
+        }
+
+        return self::control($data);
     }
 
     public static function prop(string $key, mixed $value, string $mode = 'replace'): self

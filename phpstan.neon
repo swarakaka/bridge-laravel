@@ -6,5 +6,7 @@ parameters:
     paths:
         - src
         - config
+        # Uses the StreamsChanges trait, so PHPStan analyses it.
+        - tests/Fixtures/Models
     tmpDir: .phpstan
     noEnvCallsOutsideOfConfig: false

@@ -7,6 +7,7 @@ namespace Bridge\Stream;
 use Bridge\Props\Serializer;
 use Bridge\Stream\Bus\Envelope;
 use Bridge\Stream\Contracts\EventBus;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 /**
@@ -22,7 +23,24 @@ final class Publisher
         private readonly Serializer $serializer,
         private readonly Request $request,
         private readonly array $channels,
+        private readonly ?WatchChanges $watch = null,
     ) {}
+
+    /**
+     * Report changes that fired no model events (mass updates, raw queries)
+     * to watched props (PLAN §20.6): a model class (`<tag>`), a model
+     * (`<tag>` and `<tag>.<key>`), a tag, or `'<tag>.*'` for "some records".
+     * Buffered like model changes: published after commit, when the request,
+     * job or command ends.
+     */
+    public function touch(Model|string ...$sources): void
+    {
+        if ($this->watch === null) {
+            throw new \LogicException('This publisher cannot record watch changes.');
+        }
+
+        $this->watch->record($this->channels, array_values($sources));
+    }
 
     /**
      * @param  list<string>|string  $keys

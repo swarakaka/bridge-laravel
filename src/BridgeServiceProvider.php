@@ -29,11 +29,14 @@ use Bridge\Stream\ConnectionLimiter;
 use Bridge\Stream\Contracts\EventBus;
 use Bridge\Stream\Contracts\ShouldStream;
 use Bridge\Stream\Listeners\PublishStreamableEvents;
+use Bridge\Stream\WatchChanges;
+use Bridge\Stream\WatchTags;
 use Bridge\Support\Version;
 use Bridge\Testing\BridgeTestingMacros;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Config\Repository;
@@ -45,6 +48,8 @@ use Illuminate\Contracts\Session\Session;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
+use Illuminate\Queue\Events\JobExceptionOccurred;
+use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\RateLimiter;
@@ -124,6 +129,22 @@ final class BridgeServiceProvider extends ServiceProvider
                 (is_numeric($maxDuration) ? (int) $maxDuration : 300) + 60,
             );
         });
+
+        $this->app->singleton(WatchTags::class, fn (Application $app): WatchTags => new WatchTags(
+            (string) $app->make(Repository::class)->get('bridge.watch.tags', WatchTags::STYLE_TABLE),
+        ));
+        // A singleton, not scoped: flushing at every boundary (below) empties it,
+        // and a scoped instance could be forgotten before a job's flush ran.
+        $this->app->singleton(WatchChanges::class, function (Application $app): WatchChanges {
+            $config = $app->make(Repository::class);
+            $channels = $config->get('bridge.watch.channels', ['bridge.watch']);
+
+            return new WatchChanges(
+                $app->make(WatchTags::class),
+                is_array($channels) ? array_values(array_map('strval', $channels)) : [],
+                max(1, (int) $config->get('bridge.watch.max_tags', 50)),
+            );
+        });
     }
 
     public function boot(): void
@@ -144,6 +165,7 @@ final class BridgeServiceProvider extends ServiceProvider
         $this->app->make(Dispatcher::class)->listen(RequestHandled::class, fn () => $this->app->make(BridgeManager::class)->resetRequestShared());
 
         $this->app->make(Dispatcher::class)->listen(ShouldStream::class, PublishStreamableEvents::class);
+        $this->registerWatchFlushing();
         $this->app->make(Dispatcher::class)->listen(Logout::class, function (): void {
             if ((bool) $this->app->make(Repository::class)->get('bridge.history.clear_on_logout', true) && $this->app->bound('request')) {
                 $this->app->make(BridgeManager::class)->clearHistory();
@@ -157,6 +179,22 @@ final class BridgeServiceProvider extends ServiceProvider
         if (class_exists(TestResponse::class)) {
             BridgeTestingMacros::register();
         }
+    }
+
+    /**
+     * Watch changes are published once per request (after the response),
+     * job and command (PLAN §20.6).
+     */
+    private function registerWatchFlushing(): void
+    {
+        $flush = function (): void {
+            if ($this->app->resolved(WatchChanges::class)) {
+                $this->app->make(WatchChanges::class)->flush();
+            }
+        };
+
+        $this->app->terminating($flush);
+        $this->app->make(Dispatcher::class)->listen([JobProcessed::class, JobExceptionOccurred::class, CommandFinished::class], $flush);
     }
 
     private function registerMiddleware(): void

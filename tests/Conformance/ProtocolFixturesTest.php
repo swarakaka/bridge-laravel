@@ -3,15 +3,21 @@
 declare(strict_types=1);
 
 use Bridge\Bridge;
+use Bridge\Stream\Bus\Cursor;
+use Bridge\Stream\Contracts\EventBus;
+use Bridge\Stream\WatchChanges;
 use Bridge\Support\Headers;
 use Bridge\Tests\Fixtures\Http\CustomerResource;
+use Bridge\Tests\Fixtures\Models\WatchedCustomer;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Validator;
 
@@ -191,6 +197,57 @@ it('produces the once fixtures', function (string $fixture, array $headers) {
     'full' => ['once-full.json', []],
     'held' => ['once-held.json', [Headers::ONCE => 'customer-statuses, other']],
 ]);
+
+it('produces the watch fixture', function () {
+    Route::middleware('web')->get('/watch/customers/{id}', fn () => Bridge::render('Customers/Show', [
+        'customer' => Bridge::watch(CustomerResource::make(['id' => 21, 'name' => 'Acme', 'email' => 'hello@acme.test']), 'customers.21'),
+        'activity' => Bridge::lazy(fn () => [])->watch('activity'),
+    ]));
+
+    $response = $this->page('/watch/customers/21')->assertOk();
+    $expected = protocolFixture('page/watch.json');
+    $expected['url'] = '/watch/customers/21';
+
+    validateAgainst('page', (string) $response->getContent());
+    expect($response->json())->toEqual($expected);
+});
+
+it('produces the watch invalidations of the stream fixture', function () {
+    config()->set('bridge.stream.driver', 'sync');
+    Schema::create('customers', function (Blueprint $table) {
+        $table->id();
+        $table->unsignedInteger('tenant_id');
+        $table->string('name');
+        $table->softDeletes();
+        $table->timestamps();
+    });
+    Route::put('/customers/{id}', function (string $id) {
+        WatchedCustomer::query()->findOrFail($id)->update(['name' => 'Acme Inc']);
+
+        return response()->noContent();
+    });
+    WatchedCustomer::query()->insert(array_map(fn (int $id) => ['id' => $id, 'tenant_id' => 7, 'name' => 'C'.$id], range(1, 21)));
+
+    $this->withHeaders([Headers::CLIENT => 'Zm9vYmFyYmF6cXV4cXV1eA.7'])->put('/customers/21')->assertNoContent();
+    // A job or command, outside the request above: no client.
+    app()->instance('request', Request::create('/'));
+    Bridge::to('tenant.7')->touch(WatchedCustomer::class, 'customers.*');
+    app(WatchChanges::class)->flush();
+
+    // Control events with an id in the fixture: the bus messages, in order.
+    preg_match_all('/^id: .+\nevent: bridge\ndata: (.+)$/m', (string) file_get_contents(PROTOCOL_DIR.'/fixtures/stream/watch.txt'), $matches);
+    $events = iterator_to_array(app(EventBus::class)->read(['tenant.7'], Cursor::start(), 0), false);
+
+    expect($matches[1])->toHaveCount(2);
+
+    foreach ($events as $i => $event) {
+        $json = (string) json_encode($event->data);
+        validateAgainst('stream-control', $json);
+        expect(json_decode($json, true))->toBe(json_decode($matches[1][$i], true));
+    }
+
+    expect($events)->toHaveCount(2);
+});
 
 it('embeds the same page object in the HTML shell', function () {
     $this->html('/customers?page=2')->assertBridgePage('Customers/Index', function ($page) {

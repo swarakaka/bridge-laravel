@@ -18,12 +18,14 @@ use Bridge\Props\Once;
 use Bridge\Props\PropResolver;
 use Bridge\Props\Scroll;
 use Bridge\Props\Serializer;
+use Bridge\Props\Watch;
 use Bridge\Representation\RepresenterRegistry;
 use Bridge\Stream\ChannelAuthorizer;
 use Bridge\Stream\Contracts\EventBus;
 use Bridge\Stream\Publisher;
 use Bridge\Stream\StreamResponse;
 use Bridge\Stream\StreamWriter;
+use Bridge\Stream\WatchChanges;
 use Bridge\Support\Headers;
 use Bridge\Support\Version;
 use Closure;
@@ -32,6 +34,7 @@ use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Routing\UrlGenerator;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -111,6 +114,7 @@ class BridgeManager
             $this->container->make(Serializer::class),
             $this->container->make('request'),
             is_array($channels) ? $channels : [$channels],
+            $this->container->make(WatchChanges::class),
         );
     }
 
@@ -244,6 +248,15 @@ class BridgeManager
     public function once(mixed $value, ?string $key = null, DateInterval|int|null $ttl = null): Once
     {
         return new Once($value, $key, $ttl);
+    }
+
+    /**
+     * Reloaded on clients when the data it is built from changes (PLAN §20.6):
+     * `Bridge::watch(fn () => ..., Customer::class)`, `Bridge::watch($value, $customer)`.
+     */
+    public function watch(mixed $value, Model|string ...$sources): Watch
+    {
+        return new Watch($value, ...array_values($sources));
     }
 
     public function mode(?Request $request = null): Mode

@@ -4,22 +4,27 @@ declare(strict_types=1);
 
 namespace Bridge\Props;
 
+use Bridge\Stream\WatchTags;
 use Closure;
 use DateInterval;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Database\Eloquent\Model;
 use LogicException;
 
 /**
  * A prop value with a delivery (plain, lazy, deferred or always; see
- * spec/page.md §4) and optional modifiers: merge (§3) and once (§11), for
- * example `Bridge::defer(fn () => ...)->once(ttl: 3600)`. Modifiers return
- * copies, because shared hints outlive requests.
+ * spec/page.md §4) and optional modifiers: merge (§3), once (§11) and
+ * watch (§13), for example `Bridge::defer(fn () => ...)->once(ttl: 3600)`.
+ * Modifiers return copies, because shared hints outlive requests.
  */
 abstract class PropHint
 {
     private ?MergeOptions $mergeOptions = null;
 
     private ?OnceOptions $onceOptions = null;
+
+    /** @var list<Model|string> */
+    private array $watchSources = [];
 
     public function __construct(protected readonly mixed $value) {}
 
@@ -38,6 +43,31 @@ abstract class PropHint
     public function onceOptions(): ?OnceOptions
     {
         return $this->onceOptions;
+    }
+
+    /** @return list<Model|string> */
+    public function watchSources(): array
+    {
+        return $this->watchSources;
+    }
+
+    /**
+     * Reload this prop on clients when the data it is built from changes
+     * (PLAN §20.6): a model class (any record), a model instance (that
+     * record) or a string tag. Composes with every delivery and modifier.
+     */
+    public function watch(Model|string ...$sources): static
+    {
+        foreach ($sources as $source) {
+            if (is_string($source) && ! is_subclass_of($source, Model::class)) {
+                WatchTags::assertValid($source);
+            }
+        }
+
+        $copy = clone $this;
+        $copy->watchSources = array_values(array_unique([...$this->watchSources, ...$sources], SORT_REGULAR));
+
+        return $copy;
     }
 
     /** Combine with the current value on opted-in partial reloads, appending (§3). */
@@ -133,6 +163,11 @@ abstract class PropHint
     protected function initOnce(OnceOptions $options): void
     {
         $this->onceOptions = $options;
+    }
+
+    protected function initWatch(Model|string ...$sources): void
+    {
+        $this->watchSources = $this->watch(...$sources)->watchSources;
     }
 
     /** Deliveries that cannot take a modifier override this. */

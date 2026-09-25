@@ -6,6 +6,7 @@ namespace Bridge\Props;
 
 use Bridge\Negotiation\Mode;
 use Bridge\Page\Page;
+use Bridge\Stream\WatchTags;
 use Bridge\Support\Headers;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Http\Request;
@@ -38,6 +39,7 @@ final class PropResolver
         $matchOn = [];
         $scroll = [];
         $once = [];
+        $watch = [];
         // Held once keys matter only to page clients; HTML shells always carry the values.
         $heldKeys = $mode === Mode::Page ? $this->heldOnceKeys($request) : [];
 
@@ -46,6 +48,7 @@ final class PropResolver
 
             if ($value instanceof Always) {
                 $resolved[$key] = $this->serializer->serialize($this->unwrap($key, $value), $request);
+                $this->recordWatch($watch, $key, $value, $mode);
 
                 continue;
             }
@@ -70,6 +73,7 @@ final class PropResolver
                 // Absent unless named; a held lazy-once value is still filled in by the client.
                 if ($held && $onceEntry !== null) {
                     $once[$key] = $onceEntry;
+                    $this->recordWatch($watch, $key, $value, $mode);
                 }
 
                 continue;
@@ -79,12 +83,16 @@ final class PropResolver
                 // A held deferred-once value is neither sent nor deferred: the client fills it in.
                 if ($held && $onceEntry !== null) {
                     $once[$key] = $onceEntry;
+                    $this->recordWatch($watch, $key, $value, $mode);
                 } else {
                     $deferred[$value->group][] = $key;
                 }
 
                 continue;
             }
+
+            // Sent or held: either way the client shows a value built from these sources.
+            $this->recordWatch($watch, $key, $value, $mode);
 
             if ($onceEntry !== null) {
                 $once[$key] = $onceEntry;
@@ -131,7 +139,29 @@ final class PropResolver
             $resolved[$key] = $this->applyNestedSelection($key, $serialized, $selection);
         }
 
-        return new ResolvedProps($resolved, $deferred, $selection->isPartial(), $merge, $once, $prepend, $deepMerge, $matchOn, $scroll);
+        return new ResolvedProps($resolved, $deferred, $selection->isPartial(), $merge, $once, $prepend, $deepMerge, $matchOn, $scroll, $watch);
+    }
+
+    /**
+     * `meta.watch` entry of a prop (spec/page.md §13). JSON clients have no
+     * page to reload, so JSON mode lists nothing.
+     *
+     * @param  array<string, list<string>>  $watch
+     */
+    private function recordWatch(array &$watch, string $key, mixed $value, Mode $mode): void
+    {
+        if ($mode === Mode::Json || ! $value instanceof PropHint || $value->watchSources() === []) {
+            return;
+        }
+
+        $tags = $this->container->make(WatchTags::class);
+        $list = [];
+
+        foreach ($value->watchSources() as $source) {
+            array_push($list, ...$tags->forWatch($source));
+        }
+
+        $watch[$key] = array_values(array_unique($list));
     }
 
     /**

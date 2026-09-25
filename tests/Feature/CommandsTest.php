@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Bridge\Tests\Fixtures\Models\WatchedCustomer;
+use Bridge\Tests\Fixtures\Models\WatchedNote;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request as ClientRequest;
@@ -89,4 +91,28 @@ it('rate limits stream connections per ip or user', function () {
     $user->id = 1;
 
     $this->actingAs($user)->get('/limited')->assertOk()->assertHeader('X-RateLimit-Remaining', '29');
+});
+
+it('lists watched models without streamOn() in the doctor', function () {
+    config()->set('bridge.stream.driver', 'sync');
+    $directory = app_path('Models');
+    $created = ! is_dir($directory);
+    @mkdir($directory, 0777, true);
+    file_put_contents($directory.'/BridgeDoctorNote.php', '<?php // aliased below');
+    file_put_contents($directory.'/BridgeDoctorCustomer.php', '<?php // aliased below');
+    class_alias(WatchedNote::class, 'App\\Models\\BridgeDoctorNote');
+    class_alias(WatchedCustomer::class, 'App\\Models\\BridgeDoctorCustomer');
+
+    try {
+        $this->artisan('bridge:doctor')
+            ->expectsOutputToContain('App\\Models\\BridgeDoctorNote')
+            ->doesntExpectOutputToContain('BridgeDoctorCustomer')
+            ->assertSuccessful();
+    } finally {
+        @unlink($directory.'/BridgeDoctorNote.php');
+        @unlink($directory.'/BridgeDoctorCustomer.php');
+        if ($created) {
+            @rmdir($directory);
+        }
+    }
 });
